@@ -8,7 +8,7 @@ import (
 type KafkaEncoder[T any] struct {
 }
 
-func NewEncoder[T any]() (*KafkaEncoder[T], error) {
+func NewEncoder[T any]() (Encoder[T], error) {
 	return &KafkaEncoder[T]{}, nil
 }
 
