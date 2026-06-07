@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
+// point of this service to learnd workinf with kafka and golang channels
 func main() {
+	const numberMessages = 1_000_000
+	const chunk = 1_0000
 	topic := configuration.GetEnv("KAFKA_TOPIC", "app-logs")
 
 	producer, err := producers.CreateProducer(topic)
@@ -31,7 +34,13 @@ func main() {
 		Time:    time.Now(),
 	}
 
-	producer.Publish(message)
+	for i := 0; i < numberMessages; i += chunk {
+		go func() {
+			for range chunk {
+				producer.Publish(message)
+			}
+		}()
+	}
 
 	<-ctx.Done()
 }
