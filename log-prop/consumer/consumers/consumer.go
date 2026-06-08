@@ -2,10 +2,10 @@ package consumers
 
 import (
 	"context"
+	"kafka-consumer/configuration"
+	"kafka-consumer/decoders"
+	"kafka-consumer/models"
 	"log"
-	"main/configuration"
-	"main/decoders"
-	"main/models"
 	"strings"
 
 	"github.com/IBM/sarama"

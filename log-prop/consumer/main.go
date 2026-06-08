@@ -10,6 +10,9 @@ import (
 	"syscall"
 )
 
+// split into channels
+// configuration into common
+
 func main() {
 	topic := configuration.GetEnv("KAFKA_TOPIC", "app-logs")
 	groupID := configuration.GetEnv("KAFKA_GROUP_ID", "log-consumer-group")
