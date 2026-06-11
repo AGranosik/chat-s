@@ -9,19 +9,37 @@ import (
 	"github.com/IBM/sarama"
 )
 
+type infoJob struct {
+	event   models.LogEvent
+	msg     *sarama.ConsumerMessage
+	session sarama.ConsumerGroupSession
+}
+
+type warnJob struct {
+	event   models.LogEvent
+	msg     *sarama.ConsumerMessage
+	session sarama.ConsumerGroupSession
+}
+
+type errorJob struct {
+	event   models.LogEvent
+	msg     *sarama.ConsumerMessage
+	session sarama.ConsumerGroupSession
+}
+
 type consumerGroupHandler struct {
 	decoder decoders.Decoder[models.LogEvent]
-	infoCh  chan models.LogEvent
-	warnCh  chan models.LogEvent
-	errorCh chan models.LogEvent
+	infoCh  chan infoJob
+	warnCh  chan warnJob
+	errorCh chan errorJob
 }
 
 func newConsumerGroupHandler(decoder decoders.Decoder[models.LogEvent]) *consumerGroupHandler {
 	h := &consumerGroupHandler{
 		decoder: decoder,
-		infoCh:  make(chan models.LogEvent, 100),
-		warnCh:  make(chan models.LogEvent, 100),
-		errorCh: make(chan models.LogEvent, 100),
+		infoCh:  make(chan infoJob, 100),
+		warnCh:  make(chan warnJob, 100),
+		errorCh: make(chan errorJob, 100),
 	}
 
 	go h.handleInfo()
@@ -51,38 +69,97 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		}
 
 		switch event.Level {
-		case "INFO":
-			h.infoCh <- event
+		case "information":
+			// is full for some reason
+			select {
+			case h.infoCh <- infoJob{event: event, msg: msg, session: session}:
+			default:
+				log.Printf("[WARN] infoCh full, dropping INFO at offset=%d", msg.Offset)
+				session.MarkMessage(msg, "")
+			}
 		case "WARN":
-			h.warnCh <- event
+			select {
+			case h.warnCh <- warnJob{event: event, msg: msg, session: session}:
+			default:
+				log.Printf("[WARN] warnCh full, dropping WARN at offset=%d", msg.Offset)
+				session.MarkMessage(msg, "")
+			}
 		case "ERROR":
-			h.errorCh <- event
+			select {
+			case h.errorCh <- errorJob{event: event, msg: msg, session: session}:
+			default:
+				log.Printf("[WARN] errorCh full, dropping ERROR at offset=%d", msg.Offset)
+				session.MarkMessage(msg, "")
+			}
 		default:
-			log.Printf("unknown level %q, skipping", event.Level)
+			log.Fatalf("Not existing log type.")
+			session.MarkMessage(msg, "")
 		}
-
-		session.MarkMessage(msg, "")
 	}
 	return nil
 }
 
 func (h *consumerGroupHandler) handleInfo() {
-	for event := range h.infoCh {
-		log.Printf("[INFO] service=%s message=%q time=%s",
-			event.Service, event.Message, event.Time.Format(time.RFC3339))
+	for job := range h.infoCh {
+		if job.session.Context().Err() != nil {
+			log.Printf("[INFO] session expired, message at offset=%d will be redelivered", job.msg.Offset)
+			continue
+		}
+
+		log.Printf("hehe")
+
+		log.Printf("[INFO] partition=%d offset=%d service=%s message=%q time=%s",
+			job.msg.Partition,
+			job.msg.Offset,
+			job.event.Service,
+			job.event.Message,
+			job.event.Time.Format(time.RFC3339),
+		)
+
+		job.session.MarkMessage(job.msg, "")
 	}
 }
 
 func (h *consumerGroupHandler) handleWarn() {
-	for event := range h.warnCh {
-		log.Printf("[WARN] service=%s message=%q time=%s",
-			event.Service, event.Message, event.Time.Format(time.RFC3339))
+	for job := range h.warnCh {
+		if job.session.Context().Err() != nil {
+			log.Printf("[WARN] session expired, message at offset=%d will be redelivered", job.msg.Offset)
+			continue
+		}
+
+		log.Printf("[WARN] partition=%d offset=%d service=%s message=%q time=%s",
+			job.msg.Partition,
+			job.msg.Offset,
+			job.event.Service,
+			job.event.Message,
+			job.event.Time.Format(time.RFC3339),
+		)
+
+		job.session.MarkMessage(job.msg, "")
 	}
 }
 
 func (h *consumerGroupHandler) handleError() {
-	for event := range h.errorCh {
-		log.Printf("[ERROR] service=%s message=%q time=%s",
-			event.Service, event.Message, event.Time.Format(time.RFC3339))
+	for job := range h.errorCh {
+		if job.session.Context().Err() != nil {
+			log.Printf("[ERROR] session expired, message at offset=%d will be redelivered", job.msg.Offset)
+			continue
+		}
+
+		log.Printf("[ERROR] partition=%d offset=%d service=%s message=%q time=%s",
+			job.msg.Partition,
+			job.msg.Offset,
+			job.event.Service,
+			job.event.Message,
+			job.event.Time.Format(time.RFC3339),
+		)
+
+		job.session.MarkMessage(job.msg, "")
 	}
+}
+
+func (h *consumerGroupHandler) close() {
+	close(h.infoCh)
+	close(h.warnCh)
+	close(h.errorCh)
 }
