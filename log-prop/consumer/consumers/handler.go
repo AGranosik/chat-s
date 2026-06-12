@@ -70,29 +70,13 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 		switch event.Level {
 		case "information":
-			// is full for some reason
-			select {
-			case h.infoCh <- infoJob{event: event, msg: msg, session: session}:
-			default:
-				log.Printf("[WARN] infoCh full, dropping INFO at offset=%d", msg.Offset)
-				session.MarkMessage(msg, "")
-			}
+			h.infoCh <- infoJob{event: event, msg: msg, session: session}
 		case "WARN":
-			select {
-			case h.warnCh <- warnJob{event: event, msg: msg, session: session}:
-			default:
-				log.Printf("[WARN] warnCh full, dropping WARN at offset=%d", msg.Offset)
-				session.MarkMessage(msg, "")
-			}
+			h.warnCh <- warnJob{event: event, msg: msg, session: session}
 		case "ERROR":
-			select {
-			case h.errorCh <- errorJob{event: event, msg: msg, session: session}:
-			default:
-				log.Printf("[WARN] errorCh full, dropping ERROR at offset=%d", msg.Offset)
-				session.MarkMessage(msg, "")
-			}
+			h.errorCh <- errorJob{event: event, msg: msg, session: session}
 		default:
-			log.Fatalf("Not existing log type.")
+			log.Printf("[WARN] unknown log level %q at offset=%d, skipping", event.Level, msg.Offset)
 			session.MarkMessage(msg, "")
 		}
 	}
