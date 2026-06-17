@@ -1,0 +1,195 @@
+# Architecture — chat-s (v1)
+
+Real-time chat service. **Single instance for now** — no message queue, no
+cross-node fan-out. The design keeps a clean seam so we can scale out later
+without rewriting the core.
+
+## High-level
+
+```
+                       ┌────────────────────────┐
+   browsers / clients  │   Load balancer (nginx) │  TLS termination,
+   ───────────────────▶│   :80 / :443            │  ws upgrade pass-through,
+        WebSocket +    │                         │  single upstream (for now)
+        REST           └───────────┬─────────────┘
+                                   │ proxy_pass
+                                   ▼
+                       ┌──────────────────────────┐
+                       │   Go server (1 replica)   │
+                       │                           │
+                       │  transport ── REST + ws   │
+                       │      │                    │  validate → persist msg
+                       │   chat.Service ───────────────┐  + enqueue outbox (1 tx)
+                       │      │                    │   ▼
+                       │   storage (pgx)           │ ┌────────────┐
+                       │      ▲  │ drain outbox    │ │  Postgres  │ messages, rooms,
+                       │      │  ▼                 │ │            │ users, OUTBOX
+                       │   relay ──▶ hub           │ └─────┬──────┘
+                       │           (in-mem chans)  │       │ LISTEN/NOTIFY
+                       │              │            │◀──────┘ wakes the relay
+                       └──────────────┼────────────┘
+                                      │ broadcast to room members
+                                      ▼
+                               connected clients
+```
+
+## Request / message flow
+
+1. **Connect** — client calls `GET /ws?room=<id>`. The transport layer upgrades
+   the connection and registers a `*Client` with the `hub` for that room.
+2. **Send** — client writes a message frame (JSON) over the socket. The read
+   pump hands it to `chat.Service`, which, **in a single Postgres transaction**:
+   - validates the payload,
+   - inserts it into the `messages` table,
+   - inserts a corresponding event into the `outbox` table,
+   - commits — so the message and the intent to broadcast land atomically (or
+     not at all). `chat.Service` does **not** call the hub directly.
+3. **Relay → fan-out** — the outbox relay drains undispatched `outbox` rows in
+   order and calls `Broadcaster.Broadcast(roomID, msg)` (the in-memory hub
+   today). The hub pushes the message onto every registered client's send
+   channel; each client's write pump flushes it to the socket. The relay marks
+   the row dispatched only after the broadcast hand-off succeeds. It is woken by
+   Postgres `LISTEN/NOTIFY` for low latency, with a periodic poll as a
+   crash-recovery safety net.
+4. **History** — `GET /api/rooms/{id}/messages?before=<cursor>` reads from
+   Postgres (keyset pagination), independent of the live socket.
+
+## The hub (why channels, why in-memory)
+
+Live connection state lives in one process, so the hub is just Go data
+structures guarded by channels — the same pattern explored in `../log-prop`
+(register / unregister / broadcast channels, blocking sends so we never silently
+drop messages). No Redis, no Kafka, no locks-everywhere.
+
+```
+hub
+ ├─ register   chan *Client
+ ├─ unregister chan *Client
+ ├─ broadcast  chan envelope          // {roomID, payload}
+ └─ rooms      map[roomID]map[*Client]struct{}   // owned by the hub goroutine
+```
+
+A single `hub.Run()` goroutine owns the `rooms` map and selects over the
+channels, so there is no shared-memory contention.
+
+## The outbox (why persist and broadcast must be atomic)
+
+Without an outbox, `persist → broadcast` is a dual write: two independent steps
+with a gap between them. If the process dies (or the broadcast errors) after the
+Postgres commit but before fan-out, the message is durably stored yet never
+reaches the live clients in the room — they'd only see it on the next history
+fetch or reconnect. That is exactly the "silently drop a message" failure the
+hub's blocking sends were chosen to avoid, just moved one step earlier.
+
+The transactional outbox closes the gap:
+
+```
+outbox
+ ├─ id            bigserial primary key
+ ├─ room_id       text/uuid          // partition + ordering key
+ ├─ payload       jsonb              // the message event to broadcast
+ ├─ created_at    timestamptz default now()
+ └─ dispatched_at timestamptz        // NULL until the relay fans it out
+                                     // index (dispatched_at, id) for the drain query
+```
+
+- **Write side** — `chat.Service` inserts the `messages` row and the `outbox`
+  row in the *same* transaction. Either both commit or neither does; there is no
+  in-between state.
+- **Read side (relay)** — a single relay goroutine (`internal/outbox/relay.go`)
+  selects undispatched rows ordered by `id`, calls the `Broadcaster`, then sets
+  `dispatched_at`. Ordering by `id` preserves per-room message order. The relay
+  is the **only** caller of `Broadcaster`.
+- **Latency vs. durability** — the commit fires `pg_notify`; the relay blocks on
+  `LISTEN` and dispatches within milliseconds. A periodic poll (every few
+  seconds) re-scans for any rows whose notification was missed (e.g. relay was
+  down at commit time), so a crash never strands a message.
+- **At-least-once** — if the relay crashes after broadcast but before marking the
+  row, it re-dispatches on restart. The hub fan-out is idempotent enough for
+  chat (clients can de-dupe on message `id` if needed); we do not need exactly-once.
+
+This keeps the project's single-instance promise — the relay drains to the
+in-memory hub, no external broker is introduced — while making the core flow
+crash-safe and setting up the multi-node swap below.
+
+## The scaling seam (future, do NOT build yet)
+
+`chat.Service` depends on a `Broadcaster` interface, not the concrete hub:
+
+```go
+type Broadcaster interface {
+    Broadcast(roomID string, msg models.Message)
+}
+```
+
+- **Today (1 instance):** in-memory channel hub implements `Broadcaster`.
+- **Later (N instances):** a Redis Pub/Sub or Kafka-backed broadcaster
+  implements the same interface — each node subscribes and re-fans-out to its
+  local hub. The Kafka experience in `../log-prop` is the reference for that
+  step. The load balancer is already in the diagram so this is a swap, not a
+  re-architecture. Sticky sessions (or a shared session store) become relevant
+  only at that point.
+
+The **outbox is what makes that swap safe.** Multi-node fan-out is a dual write
+to two systems (Postgres + broker), and dual writes without an outbox lose
+events on crash. With the outbox already in place, the relay's `Broadcaster`
+target simply changes from the in-memory hub to the Kafka/Redis producer; each
+node then consumes the bus and re-fans to its local hub. The write side
+(`persist + enqueue` in one tx) does not change at all. So the outbox we build
+now for single-instance crash-safety doubles as the reliable-publish primitive
+the multi-node milestone needs — built once, not twice.
+
+## Data model (initial)
+
+| table      | key columns                                            |
+|------------|--------------------------------------------------------|
+| `users`    | `id`, `username`, `created_at`                         |
+| `rooms`    | `id`, `name`, `created_at`                              |
+| `messages` | `id`, `room_id`→rooms, `user_id`→users, `body`, `created_at` |
+| `outbox`   | `id`, `room_id`, `payload` (jsonb), `created_at`, `dispatched_at` |
+
+`messages` is indexed on `(room_id, created_at desc, id desc)` for history
+pagination. `outbox` is indexed on `(dispatched_at, id)` for the relay's drain
+query (undispatched rows, in order). The message insert and the outbox insert
+happen in one transaction — see "The outbox" above.
+
+## Technology choices
+
+| concern        | choice                          | why                                          |
+|----------------|---------------------------------|----------------------------------------------|
+| WebSocket      | `github.com/gorilla/websocket`  | battle-tested hub pattern; stable API        |
+| Postgres driver| `github.com/jackc/pgx/v5`       | modern, fast, `pgxpool` for pooling          |
+| migrations     | `github.com/pressly/goose`      | plain-SQL migrations, simple CLI             |
+| config         | env vars via `internal/config`  | mirrors `log-prop` `GetEnv(key, fallback)`   |
+| load balancer  | nginx                           | ws upgrade support, TLS, future upstreams    |
+| infra (local)  | docker-compose                  | mirrors `log-prop` setup                     |
+
+## Layout
+
+```
+v1/
+├── cmd/server/main.go          # wires config → storage → hub → transport; graceful shutdown
+├── internal/
+│   ├── config/env.go           # GetEnv(key, fallback)  (same idiom as log-prop)
+│   ├── transport/
+│   │   ├── http.go             # router + REST handlers
+│   │   └── ws.go               # upgrade + per-conn handler
+│   ├── hub/
+│   │   ├── hub.go              # Run() goroutine, register/unregister/broadcast
+│   │   └── client.go           # read pump / write pump
+│   ├── chat/service.go         # validate → (tx: persist msg + enqueue outbox)
+│   ├── outbox/
+│   │   └── relay.go            # LISTEN/NOTIFY + poll; drain outbox → Broadcaster
+│   ├── storage/
+│   │   ├── postgres.go         # pgxpool connect, migrate-on-boot
+│   │   ├── messages.go         # insert (tx-aware) + history queries
+│   │   └── outbox.go           # enqueue (tx-aware), fetch undispatched, mark dispatched
+│   └── models/                 # message.go, room.go, user.go
+├── migrations/                 # NNNN_*.sql (goose)
+├── nginx/nginx.conf
+├── Dockerfile
+├── docker-compose.yml
+├── go.mod
+├── CLAUDE.md
+└── docs/{ARCHITECTURE.md,PLAN.md}
+```
