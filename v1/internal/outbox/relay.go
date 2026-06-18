@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"chat-s/internal/chat"
 	"chat-s/internal/storage"
 )
@@ -16,11 +18,19 @@ const (
 	pollInterval  = 2 * time.Second
 )
 
+// outboxStore is the subset of *storage.Store the relay needs. Narrowing it to
+// an interface lets drain be unit-tested with a fake, no database required.
+type outboxStore interface {
+	Pool() *pgxpool.Pool
+	FetchUndispatched(ctx context.Context, limit int) ([]storage.OutboxEvent, error)
+	MarkDispatched(ctx context.Context, ids []int64) error
+}
+
 // Relay drains the transactional outbox and hands each event to a Broadcaster.
 // It is woken by Postgres LISTEN/NOTIFY for low latency, with a periodic poll as
 // a crash-recovery safety net (see docs/ARCHITECTURE.md "The outbox").
 type Relay struct {
-	store       *storage.Store
+	store       outboxStore
 	broadcaster chat.Broadcaster
 }
 
