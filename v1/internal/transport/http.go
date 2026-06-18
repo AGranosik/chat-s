@@ -35,6 +35,8 @@ func NewRouter(ctx context.Context, store *storage.Store, svc *chat.Service, h *
 	mux.HandleFunc("GET /healthz", rt.handleHealth)
 	mux.HandleFunc("GET /api/rooms", rt.handleListRooms)
 	mux.HandleFunc("POST /api/rooms", rt.handleCreateRoom)
+	mux.HandleFunc("GET /api/users", rt.handleListUsers)
+	mux.HandleFunc("POST /api/users", rt.handleCreateUser)
 	mux.HandleFunc("GET /api/rooms/{id}/messages", rt.handleHistory)
 	mux.HandleFunc("GET /ws", rt.handleWS)
 	return mux
@@ -73,6 +75,36 @@ func (rt *Router) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, room)
+}
+
+func (rt *Router) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := rt.store.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("list users | err=%v", err)
+		http.Error(w, "list users failed", http.StatusInternalServerError)
+		return
+	}
+	if users == nil {
+		users = []models.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
+func (rt *Router) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" {
+		http.Error(w, "invalid body: expected {\"username\": ...}", http.StatusBadRequest)
+		return
+	}
+	user, err := rt.store.CreateUser(r.Context(), body.Username)
+	if err != nil {
+		log.Printf("create user | err=%v", err)
+		http.Error(w, "create user failed", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, user)
 }
 
 func (rt *Router) handleHistory(w http.ResponseWriter, r *http.Request) {
