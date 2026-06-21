@@ -25,8 +25,8 @@ without rewriting the core.
                        │      ▲  │ drain outbox    │ │  Postgres  │ messages, rooms,
                        │      │  ▼                 │ │            │ users, OUTBOX
                        │   relay ──▶ hub           │ └─────┬──────┘
-                       │           (in-mem chans)  │       │ LISTEN/NOTIFY
-                       │              │            │◀──────┘ wakes the relay
+                       │           (in-mem chans)  │       │ poll outbox
+                       │              │            │◀──────┘ (~2s interval)
                        └──────────────┼────────────┘
                                       │ broadcast to room members
                                       ▼
@@ -48,9 +48,10 @@ without rewriting the core.
    order and calls `Broadcaster.Broadcast(roomID, msg)` (the in-memory hub
    today). The hub pushes the message onto every registered client's send
    channel; each client's write pump flushes it to the socket. The relay marks
-   the row dispatched only after the broadcast hand-off succeeds. It is woken by
-   Postgres `LISTEN/NOTIFY` for low latency, with a periodic poll as a
-   crash-recovery safety net.
+   the row dispatched only after the broadcast hand-off succeeds. It discovers
+   rows by polling the outbox on a fixed interval (~2s) — no database-specific
+   signalling, so the same loop works against any storage engine and doubles as
+   the crash-recovery path.
 4. **History** — `GET /api/rooms/{id}/messages?before=<cursor>` reads from
    Postgres (keyset pagination), independent of the live socket.
 
@@ -100,10 +101,11 @@ outbox
   selects undispatched rows ordered by `id`, calls the `Broadcaster`, then sets
   `dispatched_at`. Ordering by `id` preserves per-room message order. The relay
   is the **only** caller of `Broadcaster`.
-- **Latency vs. durability** — the commit fires `pg_notify`; the relay blocks on
-  `LISTEN` and dispatches within milliseconds. A periodic poll (every few
-  seconds) re-scans for any rows whose notification was missed (e.g. relay was
-  down at commit time), so a crash never strands a message.
+- **Latency vs. simplicity** — the relay polls for undispatched rows on a fixed
+  interval (every ~2s) rather than relying on `pg_notify`/`LISTEN`. This trades a
+  little latency for a design with no database-specific signalling: the write
+  side only has to persist the message + outbox row, and the same poll loop
+  re-scans after a crash, so a message is never stranded.
 - **At-least-once** — if the relay crashes after broadcast but before marking the
   row, it re-dispatches on restart. The hub fan-out is idempotent enough for
   chat (clients can de-dupe on message `id` if needed); we do not need exactly-once.
@@ -179,7 +181,7 @@ v1/
 │   │   └── client.go           # read pump / write pump
 │   ├── chat/service.go         # validate → (tx: persist msg + enqueue outbox)
 │   ├── outbox/
-│   │   └── relay.go            # LISTEN/NOTIFY + poll; drain outbox → Broadcaster
+│   │   └── relay.go            # poll outbox; drain → Broadcaster
 │   ├── storage/
 │   │   ├── postgres.go         # pgxpool connect, migrate-on-boot
 │   │   ├── messages.go         # insert (tx-aware) + history queries

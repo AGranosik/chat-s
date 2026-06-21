@@ -58,7 +58,7 @@ func TestWS_MessageAppearsInHistory(t *testing.T) {
 // crash after commit but before fan-out — is rediscovered by the relay's scan
 // and delivered to connected clients (the Phase 5 guarantee). We connect and
 // confirm the client first (a warmup round-trip), so the assertion is about the
-// relay finding an unnotified row, not about connect/register timing.
+// relay finding the row on a poll, not about connect/register timing.
 func TestWS_UndispatchedRowIsRediscoveredAndDelivered(t *testing.T) {
 	st := newStack(t, nil) // clean DB, relay + real hub running
 	ctx := context.Background()
@@ -71,8 +71,8 @@ func TestWS_UndispatchedRowIsRediscoveredAndDelivered(t *testing.T) {
 		t.Fatalf("warmup = %q, want 'warmup'", got.Body)
 	}
 
-	// Now strand a message + outbox row WITHOUT firing pg_notify — the relay can
-	// only find it via its periodic scan, exactly as it would on crash recovery.
+	// Now strand a message + outbox row by enqueuing directly — the relay finds
+	// it on its next poll, exactly as it would on crash recovery.
 	msg := models.Message{RoomID: seedRoomID, UserID: seedUserID, Body: "stranded"}
 	err := testStore.WithTx(ctx, func(tx pgx.Tx) error {
 		if err := storage.InsertMessage(ctx, tx, &msg); err != nil {

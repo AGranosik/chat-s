@@ -2,33 +2,30 @@ package outbox
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"chat-s/internal/chat"
 	"chat-s/internal/storage"
 )
 
 const (
-	notifyChannel = "outbox_events"
-	batchSize     = 100
-	pollInterval  = 2 * time.Second
+	batchSize    = 100
+	pollInterval = 2 * time.Second
 )
 
 // outboxStore is the subset of *storage.Store the relay needs. Narrowing it to
 // an interface lets drain be unit-tested with a fake, no database required.
 type outboxStore interface {
-	Pool() *pgxpool.Pool
 	FetchUndispatched(ctx context.Context, limit int) ([]storage.OutboxEvent, error)
 	MarkDispatched(ctx context.Context, ids []int64) error
 }
 
 // Relay drains the transactional outbox and hands each event to a Broadcaster.
-// It is woken by Postgres LISTEN/NOTIFY for low latency, with a periodic poll as
-// a crash-recovery safety net (see docs/ARCHITECTURE.md "The outbox").
+// It polls the outbox on a fixed interval — deliberately engine-agnostic, with
+// no LISTEN/NOTIFY or other Postgres-specific signalling (see
+// docs/ARCHITECTURE.md "The outbox"). The store just persists messages + outbox
+// rows; this relay picks up whatever is undispatched and propagates it.
 type Relay struct {
 	store       outboxStore
 	broadcaster chat.Broadcaster
@@ -38,54 +35,23 @@ func NewRelay(store *storage.Store, b chat.Broadcaster) *Relay {
 	return &Relay{store: store, broadcaster: b}
 }
 
-// Run drives the relay until ctx is cancelled. On a connection-level error it
-// reacquires a listen connection after a short backoff.
+// Run drives the relay until ctx is cancelled, draining the outbox once
+// immediately and then on every poll tick. A drain error is logged and retried
+// on the next tick rather than killing the loop.
 func (r *Relay) Run(ctx context.Context) {
-	for ctx.Err() == nil {
-		if err := r.listenAndDrain(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("outbox relay error, reconnecting | err=%v", err)
-			select {
-			case <-ctx.Done():
-			case <-time.After(time.Second):
-			}
-		}
-	}
-	log.Println("outbox relay stopped")
-}
-
-func (r *Relay) listenAndDrain(ctx context.Context) error {
-	conn, err := r.store.Pool().Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
-
-	if _, err := conn.Exec(ctx, "listen "+notifyChannel); err != nil {
-		return err
-	}
-	log.Println("outbox relay listening")
-
-	// Drain anything already pending (e.g. rows left undispatched by a crash)
-	// before we start waiting for new notifications.
-	if err := r.drain(ctx); err != nil {
-		return err
-	}
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	log.Println("outbox relay started")
 
 	for {
-		waitCtx, cancel := context.WithTimeout(ctx, pollInterval)
-		_, err := conn.Conn().WaitForNotification(waitCtx)
-		cancel()
-		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if !errors.Is(err, context.DeadlineExceeded) {
-				return err // connection-level problem; reacquire in Run
-			}
-			// Deadline hit: this is the poll fallback — fall through and drain.
+		if err := r.drain(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("outbox relay drain error | err=%v", err)
 		}
-		if err := r.drain(ctx); err != nil {
-			return err
+		select {
+		case <-ctx.Done():
+			log.Println("outbox relay stopped")
+			return
+		case <-ticker.C:
 		}
 	}
 }

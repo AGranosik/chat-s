@@ -19,8 +19,8 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// Pool exposes the underlying pool (the relay needs a dedicated connection for
-// LISTEN/NOTIFY).
+// Pool exposes the underlying pool for callers that need raw access (e.g. tests
+// resetting state between runs).
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
 // WithTx runs fn inside a transaction, committing on success and rolling back

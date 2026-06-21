@@ -2,8 +2,8 @@
 
 // Package integration holds end-to-end tests that run against a real Postgres,
 // spun up once per package via testcontainers. They exercise the seams the
-// unit tests fake out: real SQL, the transactional outbox, the LISTEN/NOTIFY
-// relay, and a full websocket round-trip. Run with:
+// unit tests fake out: real SQL, the transactional outbox, the polling relay,
+// and a full websocket round-trip. Run with:
 //
 //	go test -tags=integration ./internal/integration/...
 //
@@ -48,10 +48,11 @@ func run(m *testing.M) int {
 		),
 	)
 	if err != nil {
-		// No Docker / can't pull image: skip the whole suite rather than fail,
-		// so `go test -tags=integration ./...` is green on machines without it.
-		log.Printf("integration: cannot start postgres container, skipping | err=%v", err)
-		return 0
+		// No Docker / can't pull image: fail the suite. Integration tests are
+		// opt-in via -tags=integration, so if you asked for them and the
+		// container won't come up, that's a failure, not a silent pass.
+		log.Printf("integration: cannot start postgres container | err=%v", err)
+		return 1
 	}
 	defer func() { _ = container.Terminate(ctx) }()
 
@@ -116,8 +117,8 @@ func countRows(t *testing.T, query string, args ...any) int {
 }
 
 // eventually polls fn until it returns nil or the timeout elapses. Used instead
-// of fixed sleeps so assertions tolerate both the LISTEN/NOTIFY fast path and
-// the relay's ~2s poll fallback without being flaky.
+// of fixed sleeps so assertions tolerate the relay's ~2s poll interval without
+// being flaky.
 func eventually(t *testing.T, timeout time.Duration, fn func() error) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

@@ -67,20 +67,20 @@ func TestOutbox_ValidationWritesNothing(t *testing.T) {
 	}
 }
 
-// The relay, woken by pg_notify on commit, drains the new event to the
-// broadcaster and stamps it dispatched — the live fast path.
-func TestOutbox_RelayDispatchesViaNotify(t *testing.T) {
+// The relay polls the outbox, drains a newly enqueued event to the broadcaster
+// and stamps it dispatched.
+func TestOutbox_RelayDispatchesEnqueuedEvent(t *testing.T) {
 	rec := &recordingBroadcaster{}
 	st := newStack(t, rec) // relay feeds the recorder; ctx cleaned up by t.Cleanup
 	ctx := context.Background()
 
-	if err := st.svc.HandleIncoming(ctx, seedRoomID, chat.Incoming{UserID: seedUserID, Body: "notify-me"}); err != nil {
+	if err := st.svc.HandleIncoming(ctx, seedRoomID, chat.Incoming{UserID: seedUserID, Body: "pick-me-up"}); err != nil {
 		t.Fatalf("handle incoming: %v", err)
 	}
 
-	eventually(t, 5*time.Second, func() error {
+	eventually(t, 8*time.Second, func() error {
 		for _, m := range rec.snapshot() {
-			if m.Body == "notify-me" {
+			if m.Body == "pick-me-up" {
 				return nil
 			}
 		}
@@ -96,14 +96,13 @@ func TestOutbox_RelayDispatchesViaNotify(t *testing.T) {
 	})
 }
 
-// A row inserted directly (no pg_notify) must still be drained by the relay's
-// periodic poll fallback.
-func TestOutbox_RelayPollFallbackDrainsUnnotifiedRow(t *testing.T) {
+// A row enqueued directly (bypassing the service) must still be drained by the
+// relay's poll — the same path crash-recovery relies on.
+func TestOutbox_RelayPollDrainsDirectlyEnqueuedRow(t *testing.T) {
 	rec := &recordingBroadcaster{}
 	_ = newStack(t, rec)
 	ctx := context.Background()
 
-	// Enqueue without firing pg_notify — only the poll can find this.
 	msg := models.Message{RoomID: seedRoomID, Body: "poll-only"}
 	payload, _ := json.Marshal(msg)
 	err := testStore.WithTx(ctx, func(tx pgx.Tx) error {

@@ -43,8 +43,9 @@ func NewService(store *storage.Store) *Service {
 }
 
 // HandleIncoming validates the frame, then inserts the message and its outbox
-// event in one transaction. A pg_notify fired on commit wakes the relay. See
-// docs/ARCHITECTURE.md "The outbox".
+// event in one transaction. The outbox relay picks the row up on its next poll
+// and broadcasts it — no commit-time signalling. See docs/ARCHITECTURE.md
+// "The outbox".
 func (s *Service) HandleIncoming(ctx context.Context, roomID string, in Incoming) error {
 	body := strings.TrimSpace(in.Body)
 	switch {
@@ -66,14 +67,6 @@ func (s *Service) HandleIncoming(ctx context.Context, roomID string, in Incoming
 		if err != nil {
 			return fmt.Errorf("marshal outbox payload: %w", err)
 		}
-		if err := storage.EnqueueOutbox(ctx, tx, roomID, payload); err != nil {
-			return err
-		}
-		// NOTIFY is delivered to listeners on commit, so the relay dispatches
-		// within milliseconds. Its periodic poll covers any missed signal.
-		if _, err := tx.Exec(ctx, "select pg_notify('outbox_events', '')"); err != nil {
-			return fmt.Errorf("notify: %w", err)
-		}
-		return nil
+		return storage.EnqueueOutbox(ctx, tx, roomID, payload)
 	})
 }

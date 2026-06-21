@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"chat-s/internal/models"
 	"chat-s/internal/storage"
 )
@@ -21,8 +19,6 @@ type fakeStore struct {
 	fetchErr    error
 	dispatchErr error
 }
-
-func (f *fakeStore) Pool() *pgxpool.Pool { return nil } // never called by drain
 
 func (f *fakeStore) FetchUndispatched(_ context.Context, _ int) ([]storage.OutboxEvent, error) {
 	if f.fetchErr != nil {

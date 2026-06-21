@@ -24,7 +24,7 @@ internal/config/       GetEnv(key, fallback)
 internal/transport/    http.go (REST), ws.go (upgrade)
 internal/hub/          hub.go (Run goroutine), client.go (read/write pumps)
 internal/chat/         service.go — validate→(tx: persist+enqueue); Broadcaster iface
-internal/outbox/       relay.go — LISTEN/NOTIFY + poll; drain outbox → Broadcaster
+internal/outbox/       relay.go — poll outbox; drain → Broadcaster
 internal/storage/      postgres.go (pgxpool), messages.go (queries), outbox.go
 internal/models/       message.go, room.go, user.go
 migrations/            NNNN_*.sql (goose)
@@ -59,8 +59,10 @@ go test -tags=integration ./internal/integration/   # end-to-end vs throwaway Po
 Integration tests live in `internal/integration/` behind a `//go:build integration`
 tag, so the default `go test ./...` stays fast and DB-free. They spin up a
 `postgres:16` container via testcontainers (one per package run), then exercise
-the real SQL, the transactional outbox, the LISTEN/NOTIFY relay, and a full ws
-round-trip. They skip cleanly if Docker is unavailable.
+the real SQL, the transactional outbox, the polling relay, and a full ws
+round-trip. If the container can't start (e.g. Docker unavailable) the suite
+fails rather than skipping — integration tests are opt-in, so a failure to bring
+up the container is a real failure.
 
 ## Working agreements
 - Build one PLAN.md phase at a time; each ends in a Verify step — run it.

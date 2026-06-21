@@ -46,8 +46,8 @@ instance, no queue.** Anything multi-node is explicitly out of scope (the
 - [x] **Verify:** a sent message and its outbox row commit together — kill the process between commit and fan-out and confirm the message is still in `messages` **and** in `outbox` as undispatched
 
 ## Phase 5 — Outbox relay (reliable broadcast)
-- [x] `internal/outbox/relay.go` — single relay goroutine: `LISTEN` on a `pg_notify` channel + periodic poll fallback; drains `FetchUndispatched` in `id` order, calls `Broadcaster.Broadcast`, then `MarkDispatched`
-- [x] `chat.Service` (or `storage`) fires `pg_notify` on commit so the relay wakes immediately
+- [x] `internal/outbox/relay.go` — single relay goroutine: polls the outbox on a fixed interval (engine-agnostic, no `LISTEN/NOTIFY`); drains `FetchUndispatched` in `id` order, calls `Broadcaster.Broadcast`, then `MarkDispatched`
+- [x] `chat.Service` just persists message + outbox row in one tx; the relay picks rows up on its next poll (no commit-time signalling)
 - [x] Wire the relay in `cmd/server/main.go` (start with the hub, stop on graceful shutdown)
 - [x] At-least-once: relay re-dispatches rows left unmarked after a crash; document that clients de-dupe on message `id`
 - [x] **Verify:** message sent over ws is received by peers **and** present via history; restart the process with undispatched outbox rows present and confirm they fan out on boot
@@ -65,7 +65,7 @@ instance, no queue.** Anything multi-node is explicitly out of scope (the
 - [ ] Graceful drain: stop accepting, flush write pumps on shutdown
 - [x] Integration test: spin up Postgres (testcontainers), drive a ws round-trip
   (`internal/integration/`, `//go:build integration`; covers real SQL, the
-  transactional outbox, the LISTEN/NOTIFY relay + poll fallback, the full ws
+  transactional outbox, the polling relay, the full ws
   fan-out, history REST, and at-least-once recovery of an undispatched row)
 
 ---
