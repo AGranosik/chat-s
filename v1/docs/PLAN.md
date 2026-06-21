@@ -63,7 +63,10 @@ instance, no queue.** Anything multi-node is explicitly out of scope (the
 - [ ] Per-connection rate limiting and max message size
 - [ ] Structured logging + request IDs
 - [ ] Graceful drain: stop accepting, flush write pumps on shutdown
-- [ ] Integration test: spin up Postgres (testcontainers or compose), drive a ws round-trip
+- [x] Integration test: spin up Postgres (testcontainers), drive a ws round-trip
+  (`internal/integration/`, `//go:build integration`; covers real SQL, the
+  transactional outbox, the LISTEN/NOTIFY relay + poll fallback, the full ws
+  fan-out, history REST, and at-least-once recovery of an undispatched row)
 
 ---
 

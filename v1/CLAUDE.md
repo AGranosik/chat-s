@@ -52,7 +52,15 @@ build multi-node fan-out yet, but do not collapse the interface either.
 go run ./cmd/server          # run locally (needs Postgres; see docker-compose.yml)
 docker compose up            # full stack: postgres + server + nginx
 go build ./... && go vet ./...
+go test ./...                # unit tests (fast, no Docker)
+go test -tags=integration ./internal/integration/   # end-to-end vs throwaway Postgres (needs Docker)
 ```
+
+Integration tests live in `internal/integration/` behind a `//go:build integration`
+tag, so the default `go test ./...` stays fast and DB-free. They spin up a
+`postgres:16` container via testcontainers (one per package run), then exercise
+the real SQL, the transactional outbox, the LISTEN/NOTIFY relay, and a full ws
+round-trip. They skip cleanly if Docker is unavailable.
 
 ## Working agreements
 - Build one PLAN.md phase at a time; each ends in a Verify step — run it.
