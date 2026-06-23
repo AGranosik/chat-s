@@ -78,15 +78,16 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// Fixed seed UUIDs, matching migrations/0001 so FK inserts always have a parent.
+// Fixed seed UUIDs used by the integration tests so FK inserts always have a
+// parent. freshDB creates these rows; the migration itself seeds nothing.
 const (
 	seedRoomID = "00000000-0000-0000-0000-000000000001"
 	seedUserID = "00000000-0000-0000-0000-000000000001"
 )
 
 // freshDB resets message/outbox state between tests and guarantees the seed
-// room+user exist (the migration inserts them; truncate leaves them intact, but
-// reseeding makes each test self-contained even if a prior test removed them).
+// room+user exist. It inserts them itself (on conflict do nothing) so each test
+// is self-contained regardless of what a prior test left behind.
 func freshDB(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()

@@ -1,4 +1,4 @@
-# Runs the full chat-s load-test matrix: ROOMS x USERS, each user sending one
+﻿# Runs the full chat-s load-test matrix: ROOMS x USERS, each user sending one
 # message every -SendInterval seconds for -Duration seconds.
 #
 # Per-run JSON summaries land in loadtest/results/. A non-zero k6 exit code means
@@ -11,8 +11,8 @@
 # raise the OS file-descriptor limit and run against a warm Postgres.
 
 param(
-  [int[]]  $Rooms        = @(1, 10, 100, 1000),
-  [int[]]  $Users        = @(2, 5, 10),
+  [int[]]  $Rooms        = @(10, 100, 100),
+  [int[]]  $Users        = @(5, 10, 100),
   [int]    $Duration     = 120,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80"

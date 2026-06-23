@@ -31,10 +31,6 @@ create table outbox (
 );
 create index outbox_undispatched_idx on outbox (dispatched_at, id);
 
--- Seed a room and a user so the websocket round-trip is testable out of the box.
-insert into rooms (id, name) values ('00000000-0000-0000-0000-000000000001', 'general');
-insert into users (id, username) values ('00000000-0000-0000-0000-000000000001', 'demo');
-
 -- +goose Down
 drop table outbox;
 drop table messages;
