@@ -19,6 +19,7 @@ param(
   [int[]]  $Rooms        = @(10),
   [int[]]  $Users        = @(5),
   [switch] $Full,                                  # override Rooms/Users with the full matrix
+  [int]    $Ramp         = 30,                      # ramp connections up over N seconds
   [int]    $Duration     = 60,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80",
@@ -29,7 +30,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($Full) {
-  $Rooms = @(10, 100, 100, 300)
+  $Rooms = @(100, 300)
   $Users = @(5, 10)
 }
 
@@ -84,10 +85,11 @@ foreach ($r in $Rooms) {
     $name = "rooms{0}_users{1}" -f $r, $u
     $vus  = $r * $u
     Write-Host ""
-    Write-Host "=== $name  (VUs=$vus, duration=${Duration}s) ===" -ForegroundColor Cyan
+    Write-Host "=== $name  (VUs=$vus, ramp=${Ramp}s, hold=${Duration}s) ===" -ForegroundColor Cyan
 
     $env:ROOMS         = $r
     $env:USERS         = $u
+    $env:RAMP          = $Ramp
     $env:DURATION      = $Duration
     $env:SEND_INTERVAL = $SendInterval
     $env:HTTP_BASE     = $HttpBase

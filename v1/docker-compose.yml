@@ -27,9 +27,19 @@ services:
     environment:
       DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
       HTTP_ADDR: ":8080"
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080" # publish to host so load tests can hit the server directly (bypassing nginx)
     restart: on-failure
+    # Each proxied websocket is one fd on the server; the daemon default (often
+    # 1024) caps us near ~1000 conns. Mirror nginx's bump. somaxconn deepens the
+    # accept queue so a connect burst doesn't overflow it and get RST (Go sizes
+    # the listen backlog from net.core.somaxconn).
+    ulimits:
+      nofile:
+        soft: 32768
+        hard: 32768
+    sysctls:
+      net.core.somaxconn: 65535
     deploy:
       resources:
         limits:

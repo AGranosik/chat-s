@@ -1,32 +1,42 @@
 // k6 load test for the chat-s websocket server.
 //
-// One VU == one user == one long-lived websocket connection. Each VU sends one
-// message every SEND_INTERVAL seconds for DURATION seconds, and records the
-// end-to-end delivery latency of every message it receives (its own echo plus
-// every other member's messages in the same room).
+// One VU == one user == one long-lived websocket connection. Connections ramp
+// up softly (RAMP seconds) instead of all opening on the same tick, then hold
+// at full load for DURATION seconds. Each VU sends one message every
+// SEND_INTERVAL seconds and records the end-to-end delivery latency of every
+// message it receives (its own echo plus every other member's messages in the
+// same room).
+//
+// The soft ramp matters: opening N sockets simultaneously swamps the accept
+// backlog and most handshakes get reset, which looks like a server ceiling but
+// is really a thundering herd. Ramping in lets the server admit connections at
+// a sustainable rate so the numbers reflect real capacity.
 //
 // Parametrized by env vars so a single script covers the whole scenario matrix
-// (see run-matrix.ps1). Total VUs = ROOMS * USERS.
+// (see run-matrix.ps1). Peak VUs = ROOMS * USERS; total wall-clock ~= RAMP +
+// DURATION (+ a short graceful stop).
 //
-//   k6 run -e ROOMS=10 -e USERS=5 -e DURATION=120 chat_load.js
+//   k6 run -e ROOMS=10 -e USERS=5 -e RAMP=30 -e DURATION=120 chat_load.js
 //
 // Defaults are the smallest scenario (1 room, 2 users) so a bare `k6 run` works.
 
 import ws from 'k6/ws';
 import http from 'k6/http';
 import exec from 'k6/execution';
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
 
 // ---- Parameters ------------------------------------------------------------
 const ROOMS        = parseInt(__ENV.ROOMS         || '1', 10);   // number of rooms
 const USERS        = parseInt(__ENV.USERS         || '2', 10);   // users per room
-const DURATION_S   = parseInt(__ENV.DURATION      || '120', 10); // session length, seconds
+const RAMP_S       = parseInt(__ENV.RAMP          || '30', 10);  // ramp connections up over N seconds
+const DURATION_S   = parseInt(__ENV.DURATION      || '120', 10); // hold-at-full-load length, seconds
 const SEND_EVERY_S = parseInt(__ENV.SEND_INTERVAL || '20', 10);  // one message / N seconds
 const HTTP_BASE    = __ENV.HTTP_BASE || 'http://localhost:80';
 const WS_BASE      = __ENV.WS_BASE   || HTTP_BASE.replace(/^http/, 'ws');
 
 const TOTAL_VUS = ROOMS * USERS;
+const ACTIVE_MS = (RAMP_S + DURATION_S) * 1000; // when the active window ends and every socket should close
 
 // ---- Custom metrics --------------------------------------------------------
 const e2eLatency = new Trend('msg_e2e_latency', true); // ms; includes the relay's ~2s poll
@@ -37,10 +47,14 @@ const wsErrors   = new Counter('ws_errors');
 export const options = {
   scenarios: {
     chat: {
-      executor: 'per-vu-iterations',
-      vus: TOTAL_VUS,
-      iterations: 1,                       // one connection per VU for the whole window
-      maxDuration: `${DURATION_S + 30}s`,  // slack for setup + drain
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: `${RAMP_S}s`,     target: TOTAL_VUS }, // soft ramp: open sockets gradually
+        { duration: `${DURATION_S}s`, target: TOTAL_VUS }, // hold at full load
+      ],
+      gracefulRampDown: '0s', // sockets self-close at the end of the window (see below)
+      gracefulStop:     '15s',
     },
   },
   thresholds: {
@@ -89,6 +103,12 @@ export default function (data) {
   const userId = data.users[idx % USERS];
   const url    = `${WS_BASE}/ws?room=${roomId}`;
 
+  // A VU opens its socket when it ramps in and holds it until the active window
+  // ends, so every connection closes together regardless of when it opened.
+  // This keeps it one long-lived socket per VU (no reconnect churn during hold)
+  // while still ramping the connection count up smoothly.
+  const remainingMs = Math.max(1000, ACTIVE_MS - exec.instance.currentTestRunDuration);
+
   const res = ws.connect(url, {}, function (socket) {
     socket.on('open', function () {
       // Random initial offset so 10k VUs don't all fire on the same 20s tick.
@@ -116,9 +136,12 @@ export default function (data) {
     // End the session: close the socket, which ends the VU iteration.
     socket.setTimeout(function () {
       socket.close();
-    }, DURATION_S * 1000);
+    }, remainingMs);
   });
 
   check(res, { 'ws handshake 101': (r) => r && r.status === 101 });
-  if (!res || res.status !== 101) wsErrors.add(1);
+  if (!res || res.status !== 101) {
+    wsErrors.add(1);
+    sleep(1); // back off so a failing handshake doesn't hot-loop into a reconnect storm
+  }
 }

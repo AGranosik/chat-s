@@ -1,5 +1,6 @@
-﻿# Runs the full chat-s load-test matrix: ROOMS x USERS, each user sending one
-# message every -SendInterval seconds for -Duration seconds.
+﻿# Runs the full chat-s load-test matrix: ROOMS x USERS. Connections ramp up over
+# -Ramp seconds, hold at full load for -Duration seconds, and each user sends one
+# message every -SendInterval seconds.
 #
 # Per-run JSON summaries land in loadtest/results/. A non-zero k6 exit code means
 # that run breached a threshold; the script reports it and keeps going.
@@ -13,6 +14,7 @@
 param(
   [int[]]  $Rooms        = @(10, 100, 100),
   [int[]]  $Users        = @(5, 10, 100),
+  [int]    $Ramp         = 30,
   [int]    $Duration     = 120,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80"
@@ -32,10 +34,11 @@ foreach ($r in $Rooms) {
     $name = "rooms{0}_users{1}" -f $r, $u
     $vus  = $r * $u
     Write-Host ""
-    Write-Host "=== $name  (VUs=$vus, duration=${Duration}s) ===" -ForegroundColor Cyan
+    Write-Host "=== $name  (VUs=$vus, ramp=${Ramp}s, hold=${Duration}s) ===" -ForegroundColor Cyan
 
     $env:ROOMS         = $r
     $env:USERS         = $u
+    $env:RAMP          = $Ramp
     $env:DURATION      = $Duration
     $env:SEND_INTERVAL = $SendInterval
     $env:HTTP_BASE     = $HttpBase

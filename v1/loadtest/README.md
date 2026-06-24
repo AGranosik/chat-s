@@ -1,7 +1,10 @@
 # Load tests (k6)
 
 WebSocket load test for the chat server. One k6 VU == one user == one long-lived
-socket; each user sends one message every `SEND_INTERVAL` seconds.
+socket; each user sends one message every `SEND_INTERVAL` seconds. Connections
+**ramp up over `RAMP` seconds** rather than all opening at once, then hold at full
+load for `DURATION` seconds — opening N sockets on the same tick swamps the accept
+backlog and most handshakes get reset, which masquerades as a server ceiling.
 
 ## Scenario matrix
 
@@ -28,13 +31,13 @@ socket; each user sends one message every `SEND_INTERVAL` seconds.
 
 Single scenario:
 ```bash
-k6 run -e ROOMS=10 -e USERS=5 -e DURATION=120 loadtest/chat_load.js
+k6 run -e ROOMS=10 -e USERS=5 -e RAMP=30 -e DURATION=120 loadtest/chat_load.js
 ```
 
 Full matrix (writes `loadtest/results/<scenario>.json`):
 ```powershell
 ./loadtest/run-matrix.ps1
-./loadtest/run-matrix.ps1 -Rooms 1,10 -Users 2,5 -Duration 60   # subset
+./loadtest/run-matrix.ps1 -Rooms 1,10 -Users 2,5 -Ramp 60 -Duration 60   # subset
 ```
 
 ## Parameters (env vars)
@@ -43,9 +46,14 @@ Full matrix (writes `loadtest/results/<scenario>.json`):
 |-----------------|--------------------------|----------------------------------|
 | `ROOMS`         | `1`                      | number of rooms                  |
 | `USERS`         | `2`                      | users per room                   |
-| `DURATION`      | `120`                    | session length, seconds          |
+| `RAMP`          | `30`                     | ramp connections up over N seconds |
+| `DURATION`      | `120`                    | hold-at-full-load length, seconds |
 | `SEND_INTERVAL` | `20`                     | one message every N seconds      |
 | `HTTP_BASE`     | `http://localhost:80`    | server base URL (`WS_BASE` derived) |
+
+Total wall-clock per run is `RAMP + DURATION` (plus a ~15s graceful stop). For the
+bigger cells raise `RAMP` so the per-second connect rate stays sane — e.g. 3000
+sockets over a 30s ramp is 100 conn/s; bump to `RAMP=120` for ~25 conn/s.
 
 ## What it measures
 
