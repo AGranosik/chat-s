@@ -14,8 +14,8 @@
 param(
   [int[]]  $Rooms        = @(10, 100, 100),
   [int[]]  $Users        = @(5, 10, 100),
-  [int]    $Ramp         = 30,
-  [int]    $Duration     = 120,
+  [int]    $Ramp         = 150,
+  [int]    $Duration     = 30,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80"
 )

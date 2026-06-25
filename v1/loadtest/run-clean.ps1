@@ -19,8 +19,8 @@ param(
   [int[]]  $Rooms        = @(10),
   [int[]]  $Users        = @(5),
   [switch] $Full,                                  # override Rooms/Users with the full matrix
-  [int]    $Ramp         = 30,                      # ramp connections up over N seconds
-  [int]    $Duration     = 60,
+  [int]    $Ramp         = 150,                     # ramp connections up over N seconds
+  [int]    $Duration     = 30,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80",
   [int]    $ReadyTimeout = 120,                    # seconds to wait for /healthz
@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 
 if ($Full) {
   $Rooms = @(100, 300)
-  $Users = @(5, 10)
+  $Users = @(10)
 }
 
 $repoRoot = Split-Path $PSScriptRoot -Parent

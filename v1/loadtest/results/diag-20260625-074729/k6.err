@@ -1,0 +1,2 @@
+time="2026-06-25T07:48:02+02:00" level=info msg="setup: 300 rooms, 10 users, 3000 VUs" source=console
+time="2026-06-25T07:51:04+02:00" level=error msg="thresholds on metrics 'checks, ws_errors' have been crossed"

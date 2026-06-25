@@ -1,6 +1,6 @@
 # Architecture — chat-s (v1)
 
-Real-time chat service. **Single instance for now** — no message queue, no
+Real-time chat service. **Single instance** — no message queue, no
 cross-node fan-out. The design keeps a clean seam so we can scale out later
 without rewriting the core.
 
@@ -32,6 +32,14 @@ without rewriting the core.
                                       ▼
                                connected clients
 ```
+
+**nginx is the only ingress.** The Go server listens on `:8080`, but that port is
+**not** published to the host — in `docker-compose.yml` the service uses `expose`,
+not `ports`, so it is reachable only by nginx over the internal compose network.
+Every client *and* the load test goes through the load balancer on `:80`; there is
+no way to bypass it and hit the server directly. This keeps the deployment honest
+about its single public entry point and makes the future multi-upstream change a
+pure nginx edit.
 
 ## Request / message flow
 
@@ -114,33 +122,6 @@ This keeps the project's single-instance promise — the relay drains to the
 in-memory hub, no external broker is introduced — while making the core flow
 crash-safe and setting up the multi-node swap below.
 
-## The scaling seam (future, do NOT build yet)
-
-`chat.Service` depends on a `Broadcaster` interface, not the concrete hub:
-
-```go
-type Broadcaster interface {
-    Broadcast(roomID string, msg models.Message)
-}
-```
-
-- **Today (1 instance):** in-memory channel hub implements `Broadcaster`.
-- **Later (N instances):** a Redis Pub/Sub or Kafka-backed broadcaster
-  implements the same interface — each node subscribes and re-fans-out to its
-  local hub. The Kafka experience in `../log-prop` is the reference for that
-  step. The load balancer is already in the diagram so this is a swap, not a
-  re-architecture. Sticky sessions (or a shared session store) become relevant
-  only at that point.
-
-The **outbox is what makes that swap safe.** Multi-node fan-out is a dual write
-to two systems (Postgres + broker), and dual writes without an outbox lose
-events on crash. With the outbox already in place, the relay's `Broadcaster`
-target simply changes from the in-memory hub to the Kafka/Redis producer; each
-node then consumes the bus and re-fans to its local hub. The write side
-(`persist + enqueue` in one tx) does not change at all. So the outbox we build
-now for single-instance crash-safety doubles as the reliable-publish primitive
-the multi-node milestone needs — built once, not twice.
-
 ## Data model (initial)
 
 | table      | key columns                                            |
@@ -155,43 +136,3 @@ pagination. `outbox` is indexed on `(dispatched_at, id)` for the relay's drain
 query (undispatched rows, in order). The message insert and the outbox insert
 happen in one transaction — see "The outbox" above.
 
-## Technology choices
-
-| concern        | choice                          | why                                          |
-|----------------|---------------------------------|----------------------------------------------|
-| WebSocket      | `github.com/gorilla/websocket`  | battle-tested hub pattern; stable API        |
-| Postgres driver| `github.com/jackc/pgx/v5`       | modern, fast, `pgxpool` for pooling          |
-| migrations     | `github.com/pressly/goose`      | plain-SQL migrations, simple CLI             |
-| config         | env vars via `internal/config`  | mirrors `log-prop` `GetEnv(key, fallback)`   |
-| load balancer  | nginx                           | ws upgrade support, TLS, future upstreams    |
-| infra (local)  | docker-compose                  | mirrors `log-prop` setup                     |
-
-## Layout
-
-```
-v1/
-├── cmd/server/main.go          # wires config → storage → hub → transport; graceful shutdown
-├── internal/
-│   ├── config/env.go           # GetEnv(key, fallback)  (same idiom as log-prop)
-│   ├── transport/
-│   │   ├── http.go             # router + REST handlers
-│   │   └── ws.go               # upgrade + per-conn handler
-│   ├── hub/
-│   │   ├── hub.go              # Run() goroutine, register/unregister/broadcast
-│   │   └── client.go           # read pump / write pump
-│   ├── chat/service.go         # validate → (tx: persist msg + enqueue outbox)
-│   ├── outbox/
-│   │   └── relay.go            # poll outbox; drain → Broadcaster
-│   ├── storage/
-│   │   ├── postgres.go         # pgxpool connect, migrate-on-boot
-│   │   ├── messages.go         # insert (tx-aware) + history queries
-│   │   └── outbox.go           # enqueue (tx-aware), fetch undispatched, mark dispatched
-│   └── models/                 # message.go, room.go, user.go
-├── migrations/                 # NNNN_*.sql (goose)
-├── nginx/nginx.conf
-├── Dockerfile
-├── docker-compose.yml
-├── go.mod
-├── CLAUDE.md
-└── docs/{ARCHITECTURE.md,PLAN.md}
-```

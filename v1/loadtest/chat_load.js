@@ -16,7 +16,7 @@
 // (see run-matrix.ps1). Peak VUs = ROOMS * USERS; total wall-clock ~= RAMP +
 // DURATION (+ a short graceful stop).
 //
-//   k6 run -e ROOMS=10 -e USERS=5 -e RAMP=30 -e DURATION=120 chat_load.js
+//   k6 run -e ROOMS=10 -e USERS=5 -e RAMP=150 -e DURATION=30 chat_load.js
 //
 // Defaults are the smallest scenario (1 room, 2 users) so a bare `k6 run` works.
 
@@ -29,8 +29,8 @@ import { Trend, Counter } from 'k6/metrics';
 // ---- Parameters ------------------------------------------------------------
 const ROOMS        = parseInt(__ENV.ROOMS         || '1', 10);   // number of rooms
 const USERS        = parseInt(__ENV.USERS         || '2', 10);   // users per room
-const RAMP_S       = parseInt(__ENV.RAMP          || '30', 10);  // ramp connections up over N seconds
-const DURATION_S   = parseInt(__ENV.DURATION      || '120', 10); // hold-at-full-load length, seconds
+const RAMP_S       = parseInt(__ENV.RAMP          || '150', 10); // ramp connections up over N seconds
+const DURATION_S   = parseInt(__ENV.DURATION      || '30', 10);  // hold-at-full-load length, seconds
 const SEND_EVERY_S = parseInt(__ENV.SEND_INTERVAL || '20', 10);  // one message / N seconds
 const HTTP_BASE    = __ENV.HTTP_BASE || 'http://localhost:80';
 const WS_BASE      = __ENV.WS_BASE   || HTTP_BASE.replace(/^http/, 'ws');
@@ -98,6 +98,16 @@ export function setup() {
 }
 
 export default function (data) {
+  // One long-lived socket per VU. `ramping-vus` is a *looping* executor, so when a
+  // VU's socket closes at end-of-window it would immediately start a second
+  // iteration and reconnect — and that reconnect races the scenario shutdown, gets
+  // reset, and is wrongly counted as a failed `ws handshake 101` (this is what made
+  // the high-VU cells look like a ~47% server ceiling; it isn't). Connect once.
+  if (exec.vu.iterationInScenario > 0) {
+    sleep(1);
+    return;
+  }
+
   const idx    = exec.vu.idInTest - 1;                 // 0-based, unique across the test
   const roomId = data.rooms[Math.floor(idx / USERS)];  // USERS consecutive VUs share a room
   const userId = data.users[idx % USERS];
