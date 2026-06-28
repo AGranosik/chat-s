@@ -67,7 +67,12 @@ up the container is a real failure.
 ## Working agreements
 - Build one PLAN.md phase at a time; each ends in a Verify step — run it.
 - `/verify` after a phase, `/code-review` before committing, commit per phase so
-  checkboxes and git history stay in sync.
+  checkboxes and git history stay in sync. `/code-review` is a gate: it reviews
+  the diff **and** runs the full suite via `/run-tests`, and only goes green when
+  both pass. It does not commit — use `/commit` after a GO.
+- `/run-tests` runs the full v1 suite: `go build`/`go vet`, unit tests
+  (`go test ./...`), and the Docker-backed integration tests
+  (`go test -tags=integration ./internal/integration/...`).
 - Use `/scaffold-feature` to add an endpoint or message type so new code follows
   the layering above.
 - If the design changes, edit `docs/ARCHITECTURE.md` + `docs/PLAN.md` in the same

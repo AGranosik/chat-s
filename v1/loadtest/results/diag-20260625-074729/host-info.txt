@@ -1,9 +1,0 @@
-﻿# captured 2026-06-25T07:47:29.0866529+02:00
-# windows dynamic TCP port range (the ephemeral pool):
-
-Protocol tcp Dynamic Port Range
----------------------------------
-Start Port      : 49152
-Number of Ports : 16384
-
-# TIME_WAIT default (TcpTimedWaitDelay, blank = 120s):

@@ -48,7 +48,8 @@ Full matrix (writes `loadtest/results/<scenario>.json`):
 | `USERS`         | `2`                      | users per room                   |
 | `RAMP`          | `150`                    | ramp connections up over N seconds |
 | `DURATION`      | `30`                     | hold-at-full-load length, seconds |
-| `SEND_INTERVAL` | `20`                     | one message every N seconds      |
+| `SEND_INTERVAL` | `20`                     | one message every N seconds (fractional ok; `0` = send nothing) |
+| `MODE`          | `tput`                   | `conn` = hold sockets, send nothing; `tput` = send and measure |
 | `HTTP_BASE`     | `http://localhost:80`    | nginx entry point (`WS_BASE` derived); the server is not directly reachable |
 
 Total wall-clock per run is `RAMP + DURATION` (plus a ~15s graceful stop). The
@@ -56,6 +57,44 @@ default `RAMP=150 / DURATION=30` gives a ~3-minute active window that ramps for
 2.5 min then holds for the last 30s. For the bigger cells raise `RAMP` further so
 the per-second connect rate stays sane — e.g. 3000 sockets over the 150s ramp is
 20 conn/s; bump to `RAMP=300` for ~10 conn/s.
+
+## Finding the limits (single instance @ 600 MB)
+
+`run-limits.ps1` + `summarize.ps1` answer two coupled questions for a server
+pinned to a **600 MB** budget (`docker-compose.yml`): how many websockets fit,
+and what message rate fits at that count. The infra ceilings were raised so the
+**Go process**, not nginx or fds, is what bends first (nginx `worker_connections
+65536`, container `nofile 262144`) — otherwise you only rediscover the old ~8192
+nginx wall. Record results in [`BASELINE.md`](BASELINE.md).
+
+**The generator is a containerized k6** on the compose network by default, so the
+Windows ephemeral-port range (~16k) never caps the test below the server. Each
+`run-limits.ps1` invocation recreates a clean stack and restarts the server
+between steps (fresh heap per step).
+
+1. **Connection ceiling** — hold sockets, send nothing; the largest all-green
+   step is the limit:
+   ```powershell
+   ./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000,40000,60000
+   ./loadtest/summarize.ps1  -Dir loadtest/results/600m/conn
+   ```
+2. **Message rate at that ceiling** — set `-Rooms`/`-Users` so `Rooms × Users`
+   equals the connection ceiling you found, then sweep the send interval:
+   ```powershell
+   ./loadtest/run-limits.ps1 -Scenario tput -Rooms 400 -Users 25 -Steps 5,2,1,0.5,0.25
+   ./loadtest/summarize.ps1  -Dir loadtest/results/600m/tput
+   ```
+   The ceiling is the highest delivered `recv_per_s` at completeness ≥ 98 % and
+   `ws_errors = 0`. (Judge throughput by **completeness**, not latency — the
+   ~2 s outbox poll is a fixed latency floor, not a throughput cap.)
+
+`summarize.ps1 -Compare <dir>` puts two sweeps side by side — the future
+1-instance vs N-instance view (the N-instance run needs the multi-instance
+Broadcaster, not built yet).
+
+**`-NativeK6`** runs the host `k6` instead of the container. Native k6 on Windows
+draws from the dynamic port range (~16k sockets); to push past that, widen it as
+admin first: `netsh int ipv4 set dynamicport tcp start=10000 num=55000`.
 
 ## What it measures
 

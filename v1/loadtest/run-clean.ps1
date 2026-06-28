@@ -30,7 +30,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($Full) {
-  $Rooms = @(100, 300)
+  $Rooms = @(300, 1000)
   $Users = @(10)
 }
 

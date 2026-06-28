@@ -31,19 +31,21 @@ services:
       - "8080" # internal only: reachable by nginx on the compose network, never published to the host
     restart: on-failure
     # Each proxied websocket is one fd on the server; the daemon default (often
-    # 1024) caps us near ~1000 conns. Mirror nginx's bump. somaxconn deepens the
-    # accept queue so a connect burst doesn't overflow it and get RST (Go sizes
-    # the listen backlog from net.core.somaxconn).
+    # 1024) caps us near ~1000 conns. Raised high enough that fds never bind
+    # before the 600m memory budget does (load-test SUT — see loadtest/BASELINE.md).
+    # somaxconn deepens the accept queue so a connect burst doesn't overflow it
+    # and get RST (Go sizes the listen backlog from net.core.somaxconn).
     ulimits:
       nofile:
-        soft: 32768
-        hard: 32768
+        soft: 262144
+        hard: 262144
     sysctls:
       net.core.somaxconn: 65535
     deploy:
       resources:
         limits:
-          memory: 300m
+          # Fixed budget under test: how many ws / what message rate fits in 600m.
+          memory: 600m
 
   nginx:
     image: nginx:1.27-alpine
@@ -54,11 +56,12 @@ services:
       - "80:80"
     ulimits:
       nofile:
-        soft: 32768
-        hard: 32768
+        soft: 262144
+        hard: 262144
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     deploy:
       resources:
         limits:
-          memory: 300m
+          # Headroom so nginx is never the wall — the 600m server is the SUT.
+          memory: 512m
