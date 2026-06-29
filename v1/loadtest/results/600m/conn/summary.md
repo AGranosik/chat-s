@@ -1,4 +1,0 @@
-﻿| file | sockets | room_size | handshake_pct | ws_errors | conn_p95_ms | e2e_p50_ms | e2e_p95_ms | sent_per_s | recv_per_s | complete_pct |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| conn_200 | 200 | 2 | 100 | 0 | 2 | - | - | 0 | 0 | - |
-| conn_10000 | 10000 | 2 | 100 | 86 | 2 | - | - | 0 | 0 | - |

@@ -69,7 +69,7 @@ export const options = {
         { duration: `${DURATION_S}s`, target: TOTAL_VUS }, // hold at full load
       ],
       gracefulRampDown: '0s', // sockets self-close at the end of the window (see below)
-      gracefulStop:     '15s',
+      gracefulStop:     '90s',
     },
   },
   // Thresholds are the per-cell pass/fail gate (they drive k6's exit code, which

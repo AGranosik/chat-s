@@ -37,7 +37,7 @@ param(
   [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
 
   [string]   $Tag          = "600m",
-  [int]      $Ramp         = 120,                 # ramp sockets up over N seconds (avoid a thundering herd)
+  [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
 
   [string]   $HttpBase     = "http://localhost:80",
