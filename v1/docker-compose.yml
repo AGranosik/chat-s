@@ -15,6 +15,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          # Fixed budget under test, same as the server: keeps Postgres from
+          # eating host RAM and masking the server's own 600m wall.
+          memory: 600m
 
   server:
     build:

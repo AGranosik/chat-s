@@ -24,8 +24,10 @@
 `./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000,40000,60000`
 then `./loadtest/summarize.ps1 -Dir loadtest/results/600m/conn`.
 
-The ceiling is the largest socket count with handshake% ≥ 99 and ws_errors = 0
-(below the point where the 600 MB server OOM-restarts).
+The ceiling is the largest socket count with handshake% ≥ 99 and ws_errors
+within the teardown budget (default 0.5 % of sockets; see
+`summarize.ps1 -WsErrTolerancePct`), below the point where the 600 MB server
+OOM-restarts.
 
 **Connection ceiling: _____ concurrent websockets.**
 
@@ -44,7 +46,8 @@ sweep the send interval:
 then `./loadtest/summarize.ps1 -Dir loadtest/results/600m/tput`.
 
 The ceiling is the highest delivered `recv_per_s` with completeness ≥ 98 % and
-ws_errors = 0.
+ws_errors within the teardown budget (default 0.5 % of sockets; see
+`summarize.ps1 -WsErrTolerancePct`).
 
 **Message-rate ceiling: _____ delivered msg/s at _____ sockets.**
 

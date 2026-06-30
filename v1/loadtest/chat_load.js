@@ -40,6 +40,7 @@ const DURATION_S   = parseInt(__ENV.DURATION       || '30', 10);   // hold-at-fu
 const SEND_EVERY_S = parseFloat(__ENV.SEND_INTERVAL || '20');      // one message / N seconds; <=0 disables sending
 const HTTP_BASE    = __ENV.HTTP_BASE || 'http://localhost:80';
 const WS_BASE      = __ENV.WS_BASE   || HTTP_BASE.replace(/^http/, 'ws');
+const WS_ERR_TOL_PCT = parseFloat(__ENV.WS_ERR_TOLERANCE_PCT || '0.5'); // ws_errors tolerated as teardown noise, % of sockets
 
 // MODE picks which limit we're hunting:
 //   conn  — hold sockets, send nothing (SEND_INTERVAL forced to 0): find the
@@ -52,6 +53,12 @@ const SENDING  = MODE !== 'conn' && SEND_EVERY_S > 0;
 
 const TOTAL_VUS = ROOMS * USERS;
 const ACTIVE_MS = (RAMP_S + DURATION_S) * 1000; // when the active window ends and every socket should close
+
+// k6 tears a few sockets down uncleanly at end-of-test, so a handful of ws_errors
+// surfaces even on a healthy step. Tolerate a budget proportional to socket count
+// (a real collapse is orders of magnitude above it); floor at 5 for tiny runs.
+// Mirrors summarize.ps1's -WsErrTolerancePct so the runner gate and read-off agree.
+const WS_ERR_BUDGET = Math.max(5, Math.ceil(TOTAL_VUS * WS_ERR_TOL_PCT / 100));
 
 // ---- Custom metrics --------------------------------------------------------
 const e2eLatency = new Trend('msg_e2e_latency', true); // ms; includes the relay's ~2s poll
@@ -68,7 +75,7 @@ export const options = {
         { duration: `${RAMP_S}s`,     target: TOTAL_VUS }, // soft ramp: open sockets gradually
         { duration: `${DURATION_S}s`, target: TOTAL_VUS }, // hold at full load
       ],
-      gracefulRampDown: '0s', // sockets self-close at the end of the window (see below)
+      gracefulRampDown: '30s', // sockets self-close at the end of the window (see below)
       gracefulStop:     '90s',
     },
   },
@@ -77,12 +84,12 @@ export const options = {
   // sweep carries no traffic, so message thresholds would spuriously fail.
   thresholds: MODE === 'conn'
     ? {
-        // Connection-limit gate: every handshake succeeds, no ws errors, and
-        // sockets connect promptly. The largest step that stays green is the
-        // ws ceiling for this memory budget.
+        // Connection-limit gate: every handshake succeeds, ws errors within the
+        // teardown budget, and sockets connect promptly. The largest step that
+        // stays green is the ws ceiling for this memory budget.
         checks:        ['rate>0.99'],   // 'ws handshake 101'
         ws_connecting: ['p(95)<1000'],
-        ws_errors:     ['count==0'],
+        ws_errors:     [`count<=${WS_ERR_BUDGET}`],
       }
     : {
         checks:          ['rate>0.99'],
@@ -92,8 +99,8 @@ export const options = {
         // For the tput sweep, judge saturation by completeness (see summarize.ps1)
         // — unbounded latency growth is the tell, not the 2s floor.
         msg_e2e_latency: ['p(95)<2500', 'p(99)<3500'],
-        // No websocket errors, and traffic actually flowed both ways.
-        ws_errors:       ['count==0'],
+        // ws errors within the teardown budget, and traffic actually flowed both ways.
+        ws_errors:       [`count<=${WS_ERR_BUDGET}`],
         msgs_sent:       ['count>0'],
         msgs_received:   ['count>0'],
       },

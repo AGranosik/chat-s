@@ -85,7 +85,9 @@ between steps (fresh heap per step).
    ./loadtest/summarize.ps1  -Dir loadtest/results/600m/tput
    ```
    The ceiling is the highest delivered `recv_per_s` at completeness ≥ 98 % and
-   `ws_errors = 0`. (Judge throughput by **completeness**, not latency — the
+   `ws_errors` within the teardown budget (`summarize.ps1 -WsErrTolerancePct`,
+   default 0.5 % of sockets — absorbs k6's end-of-test teardown noise). (Judge
+   throughput by **completeness**, not latency — the
    ~2 s outbox poll is a fixed latency floor, not a throughput cap.)
 
 `summarize.ps1 -Compare <dir>` puts two sweeps side by side — the future

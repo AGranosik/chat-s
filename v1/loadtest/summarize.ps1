@@ -11,15 +11,22 @@
 # msg/s (received), and delivery completeness % = received / (sent x room_size).
 #
 # Read-off rules:
-#   conn sweep -- the largest socket count with handshake% >= 99 and ws_errors = 0
-#                is the connection ceiling.
+#   conn sweep -- the largest socket count with handshake% >= 99 and ws_errors
+#                within the teardown budget (see -WsErrTolerancePct) is the
+#                connection ceiling.
 #   tput sweep -- the highest delivered msg/s with completeness >= 98% and
-#                ws_errors = 0 is the message-rate ceiling at that socket count.
+#                ws_errors within the teardown budget is the message-rate ceiling
+#                at that socket count.
 
 param(
   [Parameter(Mandatory = $true)]
   [string] $Dir,
-  [string] $Compare                  # optional: a second sweep dir for a side-by-side
+  [string] $Compare,                 # optional: a second sweep dir for a side-by-side
+  [double] $WsErrTolerancePct = 0.5  # ws_errors up to this % of sockets are treated as
+                                     # k6 end-of-test teardown noise, not a server fault.
+                                     # Observed artifact tops out ~0.16% (19/12000); the
+                                     # first real collapse is ~22% (2261/10000), so 0.5%
+                                     # separates them with wide margin. Set 0 for strict.
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,8 +71,14 @@ function Get-Rows([string] $d) {
       [math]::Round(100.0 * $recv / ($sent * $usersN), 1)
     } else { $null }
 
-    # OK = stayed green: all handshakes, no ws errors, and (when sending) ~full delivery.
-    $ok = ($wsErr -eq 0) -and ($null -ne $hsPct -and $hsPct -ge 99) -and
+    # k6 tears a few sockets down uncleanly at end-of-test, surfacing as a handful
+    # of ws_errors even on a healthy step. Tolerate a budget proportional to socket
+    # count (a real collapse is orders of magnitude above it). Floor at 5 so tiny
+    # sweeps still absorb the noise.
+    $wsBudget = [math]::Max(5, [math]::Ceiling($sockets * $WsErrTolerancePct / 100.0))
+
+    # OK = stayed green: all handshakes, ws errors within budget, and (when sending) ~full delivery.
+    $ok = ($wsErr -le $wsBudget) -and ($null -ne $hsPct -and $hsPct -ge 99) -and
           (($sent -eq 0) -or ($null -ne $complete -and $complete -ge 98))
 
     [pscustomobject]@{
@@ -112,12 +125,12 @@ function Show-Table($rows, [string] $title, [string] $outDir) {
     if ($best) {
       Write-Host ("hint: message-rate ceiling ~= {0} delivered msg/s at {1} sockets (completeness {2}%)." -f `
         $best.recv_per_s, $best.sockets, $best.complete_pct) -ForegroundColor Green
-    } else { Write-Host "hint: no step stayed green (>=98% complete, 0 ws errors)." -ForegroundColor Yellow }
+    } else { Write-Host "hint: no step stayed green (>=98% complete, ws errors within teardown budget)." -ForegroundColor Yellow }
   } else {
     $best = $rows | Where-Object { $_.ok } | Sort-Object sockets | Select-Object -Last 1
     if ($best) {
       Write-Host ("hint: connection ceiling >= {0} sockets (largest all-green step)." -f $best.sockets) -ForegroundColor Green
-    } else { Write-Host "hint: no step stayed green (100% handshakes, 0 ws errors)." -ForegroundColor Yellow }
+    } else { Write-Host "hint: no step stayed green (100% handshakes, ws errors within teardown budget)." -ForegroundColor Yellow }
   }
 
   if ($outDir) {
