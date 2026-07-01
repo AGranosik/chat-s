@@ -98,6 +98,34 @@ Broadcaster, not built yet).
 draws from the dynamic port range (~16k sockets); to push past that, widen it as
 admin first: `netsh int ipv4 set dynamicport tcp start=10000 num=55000`.
 
+## Results — throughput (single instance @ 600 MB)
+
+Measured on this machine, so treat the absolutes as *relative* (see caveats);
+full read-off in [`BASELINE.md`](BASELINE.md).
+
+- **Connection ceiling ≥ 12,000 concurrent websockets.** Both the 10k and 12k
+  `conn` steps stayed all-green — handshake 100 %, `ws_errors` within the
+  teardown budget, sub-3 ms connect p95. 12k is the largest step run, so this is
+  a *floor*: the real wall is higher and untested.
+- **Message-rate ceiling ≈ 10,500 delivered msg/s** (10,455 measured) at 10,000
+  sockets / room size 10 — an offered ~1,056 send/s fanned out to ~10.5k
+  deliveries/s at 99 % completeness.
+
+**How throughput breaks — fan-out saturation, not sockets or memory.** With the
+socket count pinned at 10k, the knee sits between offered **1,056 send/s (99 %
+complete)** and **1,333 send/s (65 % complete)**. Past it, delivered throughput
+*drops* as offered load rises (1,333 send/s delivers only ~8,660/s) while e2e
+latency runs away (p95 1.7 s → 34 s → 50 s+) as the outbox backlog grows
+unbounded. Handshakes stay 100 % and `ws_errors` stay within teardown budget
+throughout — so this is the in-memory hub broadcast + polling outbox relay
+hitting a CPU/fan-out cap, **not** a connection wall and **not** a 600 MB OOM
+restart.
+
+Bottom line: one 600 MB instance comfortably holds ≥12k idle sockets and
+sustains ~10.5k delivered msg/s; beyond that the **single-process fan-out**, not
+socket capacity, is what bends first — exactly the seam the multi-instance
+Broadcaster (Redis/Kafka) is meant to relieve.
+
 ## What it measures
 
 - `msg_e2e_latency` — send→receive time per message. **This includes the outbox
