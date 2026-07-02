@@ -10,25 +10,46 @@ import (
 	"syscall"
 	"time"
 
+	"naive-scale/internal/chat"
 	"naive-scale/internal/config"
+	"naive-scale/internal/hub"
+	"naive-scale/internal/outbox"
+	"naive-scale/internal/storage"
+	"naive-scale/internal/transport"
 )
 
-// Empty service scaffold: an HTTP server with graceful shutdown, ready to grow
-// into the naive-scale chat approach (N instances behind nginx, no shared
-// broadcaster yet). Mirrors ../single-instance conventions.
 func main() {
 	addr := config.GetEnv("HTTP_ADDR", ":8080")
+	dsn := config.GetEnv("DATABASE_URL", "postgres://chat:chat@localhost:5432/chat?sslmode=disable")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	log.Println("applying migrations")
+	if err := storage.Migrate(ctx, dsn); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
 
-	srv := &http.Server{Addr: addr, Handler: mux}
+	pool, err := storage.Connect(ctx, dsn)
+	if err != nil {
+		log.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+	store := storage.New(pool)
+
+	// Per-instance in-memory hub. In naive-scale there are N of these (one per
+	// server replica) and no shared broadcaster, so a message only reaches
+	// clients on the same instance — the gap this approach measures.
+	h := hub.New()
+	go h.Run(ctx)
+
+	svc := chat.NewService(store)
+
+	relay := outbox.NewRelay(store, h)
+	go relay.Run(ctx)
+
+	handler := transport.NewRouter(ctx, store, svc, h)
+	srv := &http.Server{Addr: addr, Handler: handler}
 
 	go func() {
 		log.Printf("starting server | addr=%s", addr)
