@@ -27,8 +27,9 @@ import (
 // Shared across the package: one container, one pool, migrations applied once.
 // Per-test isolation comes from freshDB (truncate + reseed), not new containers.
 var (
-	testDSN   string
-	testStore *storage.Store
+	testDSN       string
+	testStore     *storage.Store
+	testRedisAddr string
 )
 
 func TestMain(m *testing.M) {
@@ -74,6 +75,26 @@ func run(m *testing.M) int {
 	}
 	defer pool.Close()
 	testStore = storage.New(pool)
+
+	redisC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "redis:7-alpine",
+			ExposedPorts: []string{"6379/tcp"},
+			WaitingFor:   wait.ForListeningPort("6379/tcp").WithStartupTimeout(60 * time.Second),
+		},
+		Started: true,
+	})
+	if err != nil {
+		log.Printf("integration: cannot start redis container | err=%v", err)
+		return 1
+	}
+	defer func() { _ = redisC.Terminate(ctx) }()
+	redisAddr, err := redisC.Endpoint(ctx, "")
+	if err != nil {
+		log.Printf("integration: redis endpoint: %v", err)
+		return 1
+	}
+	testRedisAddr = redisAddr
 
 	return m.Run()
 }

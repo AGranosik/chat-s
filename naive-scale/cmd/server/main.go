@@ -21,6 +21,7 @@ import (
 func main() {
 	addr := config.GetEnv("HTTP_ADDR", ":8080")
 	dsn := config.GetEnv("DATABASE_URL", "postgres://chat:chat@localhost:5432/chat?sslmode=disable")
+	redisAddr := config.GetEnv("REDIS_ADDR", "localhost:6379")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -37,10 +38,10 @@ func main() {
 	defer pool.Close()
 	store := storage.New(pool)
 
-	// Per-instance in-memory hub. In naive-scale there are N of these (one per
-	// server replica) and no shared broadcaster, so a message only reaches
-	// clients on the same instance — the gap this approach measures.
-	h := hub.New()
+	// Cross-instance fan-out via Redis pub/sub: each replica publishes every
+	// broadcast to a room:<id> channel and subscribes to the rooms it hosts, so a
+	// message now reaches clients on any instance, not just this one.
+	h := hub.New(redisAddr)
 	go h.Run(ctx)
 
 	svc := chat.NewService(store)

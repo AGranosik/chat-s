@@ -10,9 +10,12 @@ x-server: &server
   depends_on:
     postgres:
       condition: service_healthy
+    redis:
+      condition: service_healthy
   environment:
     DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
     HTTP_ADDR: ":8080"
+    REDIS_ADDR: redis:6379
   expose:
     - "8080" # internal only: reachable by nginx on the compose network, never published to the host
   restart: on-failure
@@ -53,6 +56,22 @@ services:
           # Fixed DB budget so Postgres doesn't eat host RAM and mask the
           # servers' own memory wall.
           memory: 600m
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru
+    mem_limit: 200m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 200m
 
   server1:
     <<: *server

@@ -46,7 +46,7 @@ func newStack(t *testing.T, broadcaster chat.Broadcaster) *stack {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	h := hub.New()
+	h := hub.New(testRedisAddr)
 	go h.Run(ctx)
 
 	svc := chat.NewService(testStore)
