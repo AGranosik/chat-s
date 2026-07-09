@@ -17,8 +17,7 @@ const (
 // outboxStore is the subset of *storage.Store the relay needs. Narrowing it to
 // an interface lets drain be unit-tested with a fake, no database required.
 type outboxStore interface {
-	FetchUndispatched(ctx context.Context, limit int) ([]storage.OutboxEvent, error)
-	MarkDispatched(ctx context.Context, ids []int64) error
+	DispatchBatch(ctx context.Context, limit int, dispatch func(storage.OutboxEvent) error) (int, error)
 }
 
 // Relay drains the transactional outbox and hands each event to a Broadcaster.
@@ -57,29 +56,23 @@ func (r *Relay) Run(ctx context.Context) {
 }
 
 // drain dispatches undispatched events in id order until the outbox is empty.
+// Each batch is claimed, broadcast, and marked dispatched in one transaction
+// (see storage.DispatchBatch): the broadcast hand-off happens inside the tx,
+// before the commit, so a crash re-dispatches on restart (at-least-once; clients
+// de-dupe on message id).
 func (r *Relay) drain(ctx context.Context) error {
 	for {
-		events, err := r.store.FetchUndispatched(ctx, batchSize)
-		if err != nil {
-			return err
-		}
-		if len(events) == 0 {
-			return nil
-		}
-		ids := make([]int64, 0, len(events))
-		for _, e := range events {
+		n, err := r.store.DispatchBatch(ctx, batchSize, func(e storage.OutboxEvent) error {
 			// Blocking hand-off to the hub — never drop (matches the project's
 			// "blocking consuming, not dropping messages" rule).
 			r.broadcaster.Broadcast(e.RoomID, e.Message)
-			ids = append(ids, e.ID)
-		}
-		// Mark dispatched only after the broadcast hand-off. A crash before this
-		// re-dispatches on restart (at-least-once; clients de-dupe on message id).
-		if err := r.store.MarkDispatched(ctx, ids); err != nil {
+			return nil
+		})
+		if err != nil {
 			return err
 		}
-		if len(events) < batchSize {
-			return nil
+		if n < batchSize {
+			return nil // a short batch (including 0) means the outbox is drained
 		}
 	}
 }
