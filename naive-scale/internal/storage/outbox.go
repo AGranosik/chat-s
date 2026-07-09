@@ -76,3 +76,84 @@ func (s *Store) MarkDispatched(ctx context.Context, ids []int64) error {
 	}
 	return nil
 }
+
+// DispatchBatch claims up to limit undispatched events, hands each to dispatch,
+// stamps them dispatched, and commits — all in ONE transaction. It returns the
+// number of events processed (0 when the outbox is empty or every remaining row
+// is claimed by another relay).
+//
+// The claiming SELECT uses FOR UPDATE SKIP LOCKED, so when several relays (one
+// per instance) drain the same outbox concurrently, each locks a *distinct* batch
+// and the others skip the locked rows — no event is ever dispatched twice. This
+// is the fix for the duplicate-broadcast wrinkle the load test surfaced
+// (completeness > 100%). The plain FetchUndispatched + MarkDispatched pair can't
+// give this guarantee: as two separate autocommitted statements, two relays read
+// the same rows before either marks them.
+//
+// dispatch runs before the commit, holding the row locks across the hand-off, so
+// the guarantee stays at-least-once: if the process crashes (or dispatch/mark
+// errors) before commit, the tx rolls back and the rows are picked up again on a
+// later poll (clients de-dupe on message id).
+func (s *Store) DispatchBatch(ctx context.Context, limit int, dispatch func(OutboxEvent) error) (int, error) {
+	var processed int
+	err := s.WithTx(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx,
+			`select id, room_id, payload
+			 from outbox
+			 where dispatched_at is null
+			 order by id
+			 limit $1
+			 for update skip locked`,
+			limit,
+		)
+		if err != nil {
+			return fmt.Errorf("claim outbox: %w", err)
+		}
+
+		// Materialise the batch, then CLOSE rows before running any further query
+		// on this tx — pgx allows only one in-flight result set per connection, so
+		// the UPDATE below would fail if rows were still open.
+		var events []OutboxEvent
+		for rows.Next() {
+			var (
+				e       OutboxEvent
+				payload []byte
+			)
+			if err := rows.Scan(&e.ID, &e.RoomID, &payload); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan outbox: %w", err)
+			}
+			if err := json.Unmarshal(payload, &e.Message); err != nil {
+				rows.Close()
+				return fmt.Errorf("decode outbox payload (id=%d): %w", e.ID, err)
+			}
+			events = append(events, e)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("claim outbox: %w", err)
+		}
+		if len(events) == 0 {
+			return nil
+		}
+
+		ids := make([]int64, 0, len(events))
+		for _, e := range events {
+			// Blocking hand-off inside the tx: the claim (row lock) is held until
+			// the rows are stamped and committed — never drop, never double-send.
+			if err := dispatch(e); err != nil {
+				return err
+			}
+			ids = append(ids, e.ID)
+		}
+
+		if _, err := tx.Exec(ctx,
+			`update outbox set dispatched_at = now() where id = any($1)`, ids,
+		); err != nil {
+			return fmt.Errorf("mark dispatched: %w", err)
+		}
+		processed = len(events)
+		return nil
+	})
+	return processed, err
+}

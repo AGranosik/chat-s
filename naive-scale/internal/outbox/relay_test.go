@@ -9,36 +9,35 @@ import (
 	"naive-scale/internal/storage"
 )
 
-// fakeStore implements outboxStore in memory. FetchUndispatched returns a
-// pre-seeded batch per call (one slice per drain iteration) so we can simulate
-// multi-batch drains; MarkDispatched records the ids it was asked to stamp.
+// fakeStore implements outboxStore in memory. Each DispatchBatch call serves the
+// next pre-seeded batch (one slice per drain iteration) so we can simulate
+// multi-batch drains, invoking the relay's dispatch callback per event and
+// recording the ids it stamped. The real store does the claim + broadcast + mark
+// in one transaction; the fake collapses that into a single call.
 type fakeStore struct {
-	batches     [][]storage.OutboxEvent
-	fetchCalls  int
-	dispatched  []int64
-	fetchErr    error
-	dispatchErr error
+	batches    [][]storage.OutboxEvent
+	calls      int
+	dispatched []int64
+	err        error // if set, DispatchBatch fails immediately (claim/mark error)
 }
 
-func (f *fakeStore) FetchUndispatched(_ context.Context, _ int) ([]storage.OutboxEvent, error) {
-	if f.fetchErr != nil {
-		return nil, f.fetchErr
+func (f *fakeStore) DispatchBatch(_ context.Context, _ int, dispatch func(storage.OutboxEvent) error) (int, error) {
+	if f.err != nil {
+		return 0, f.err
 	}
-	if f.fetchCalls >= len(f.batches) {
-		f.fetchCalls++
-		return nil, nil
+	if f.calls >= len(f.batches) {
+		f.calls++
+		return 0, nil
 	}
-	b := f.batches[f.fetchCalls]
-	f.fetchCalls++
-	return b, nil
-}
-
-func (f *fakeStore) MarkDispatched(_ context.Context, ids []int64) error {
-	if f.dispatchErr != nil {
-		return f.dispatchErr
+	b := f.batches[f.calls]
+	f.calls++
+	for _, e := range b {
+		if err := dispatch(e); err != nil {
+			return 0, err
+		}
+		f.dispatched = append(f.dispatched, e.ID)
 	}
-	f.dispatched = append(f.dispatched, ids...)
-	return nil
+	return len(b), nil
 }
 
 // recordingBroadcaster captures the messages handed to it, in order.
@@ -58,7 +57,7 @@ func event(id int64, body string) storage.OutboxEvent {
 	}
 }
 
-func TestDrain_BroadcastsThenMarksDispatched(t *testing.T) {
+func TestDrain_BroadcastsAndMarksDispatched(t *testing.T) {
 	store := &fakeStore{batches: [][]storage.OutboxEvent{
 		{event(1, "a"), event(2, "b")},
 	}}
@@ -78,7 +77,7 @@ func TestDrain_BroadcastsThenMarksDispatched(t *testing.T) {
 }
 
 func TestDrain_EmptyOutboxIsNoOp(t *testing.T) {
-	store := &fakeStore{} // no batches → FetchUndispatched returns nil
+	store := &fakeStore{} // no batches → DispatchBatch returns 0
 	bc := &recordingBroadcaster{}
 	r := &Relay{store: store, broadcaster: bc}
 
@@ -93,7 +92,7 @@ func TestDrain_EmptyOutboxIsNoOp(t *testing.T) {
 	}
 }
 
-// A full batch must trigger another fetch; a short batch ends the drain.
+// A full batch must trigger another dispatch; a short batch ends the drain.
 func TestDrain_LoopsUntilBatchUnderLimit(t *testing.T) {
 	full := make([]storage.OutboxEvent, batchSize)
 	for i := range full {
@@ -112,29 +111,17 @@ func TestDrain_LoopsUntilBatchUnderLimit(t *testing.T) {
 	if got, want := len(bc.got), batchSize+1; got != want {
 		t.Errorf("broadcast count = %d, want %d", got, want)
 	}
-	// Two non-empty batches fetched, then the loop stops (short batch < limit).
-	if store.fetchCalls != 2 {
-		t.Errorf("fetchCalls = %d, want 2", store.fetchCalls)
+	// Two non-empty batches processed, then the loop stops (short batch < limit).
+	if store.calls != 2 {
+		t.Errorf("DispatchBatch calls = %d, want 2", store.calls)
 	}
 }
 
-func TestDrain_FetchErrorPropagates(t *testing.T) {
+// A claim/mark failure inside DispatchBatch must surface so the tick retries the
+// (rolled-back, still-undispatched) rows rather than silently losing them.
+func TestDrain_DispatchBatchErrorPropagates(t *testing.T) {
 	sentinel := errors.New("boom")
-	store := &fakeStore{fetchErr: sentinel}
-	r := &Relay{store: store, broadcaster: &recordingBroadcaster{}}
-
-	if err := r.drain(context.Background()); !errors.Is(err, sentinel) {
-		t.Errorf("drain err = %v, want %v", err, sentinel)
-	}
-}
-
-// MarkDispatched failing must surface — losing the stamp means re-broadcast.
-func TestDrain_MarkDispatchedErrorPropagates(t *testing.T) {
-	sentinel := errors.New("update failed")
-	store := &fakeStore{
-		batches:     [][]storage.OutboxEvent{{event(1, "a")}},
-		dispatchErr: sentinel,
-	}
+	store := &fakeStore{err: sentinel}
 	r := &Relay{store: store, broadcaster: &recordingBroadcaster{}}
 
 	if err := r.drain(context.Background()); !errors.Is(err, sentinel) {

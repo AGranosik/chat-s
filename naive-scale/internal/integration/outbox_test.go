@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,4 +123,65 @@ func TestOutbox_RelayPollDrainsDirectlyEnqueuedRow(t *testing.T) {
 		}
 		return errors.New("poll fallback has not drained the row yet")
 	})
+}
+
+// The core of the naive-scale fix: three relays (one per instance) drain the same
+// outbox concurrently, and every row must be dispatched EXACTLY once. DispatchBatch
+// claims rows with FOR UPDATE SKIP LOCKED so the relays take disjoint batches;
+// without it they re-read and re-broadcast each other's rows (the completeness
+// > 100% the load test measured). Also asserts nothing is left undispatched.
+func TestOutbox_ConcurrentRelaysDispatchEachRowOnce(t *testing.T) {
+	freshDB(t)
+	ctx := context.Background()
+
+	const total = 300
+	for i := 0; i < total; i++ {
+		msg := models.Message{RoomID: seedRoomID, Body: fmt.Sprintf("m-%d", i)}
+		payload, _ := json.Marshal(msg)
+		if err := testStore.WithTx(ctx, func(tx pgx.Tx) error {
+			return storage.EnqueueOutbox(ctx, tx, seedRoomID, payload)
+		}); err != nil {
+			t.Fatalf("enqueue %d: %v", i, err)
+		}
+	}
+
+	var mu sync.Mutex
+	seen := make(map[int64]int) // outbox id -> times dispatched
+
+	const relays = 3
+	var wg sync.WaitGroup
+	for r := 0; r < relays; r++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				n, err := testStore.DispatchBatch(ctx, 16, func(e storage.OutboxEvent) error {
+					mu.Lock()
+					seen[e.ID]++
+					mu.Unlock()
+					return nil
+				})
+				if err != nil {
+					t.Errorf("dispatch batch: %v", err)
+					return
+				}
+				if n == 0 {
+					return // no rows available or claimable — this relay is done
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	if len(seen) != total {
+		t.Errorf("distinct rows dispatched = %d, want %d", len(seen), total)
+	}
+	for id, c := range seen {
+		if c != 1 {
+			t.Errorf("outbox id %d dispatched %d times, want exactly 1", id, c)
+		}
+	}
+	if got := countRows(t, `select count(*) from outbox where dispatched_at is null`); got != 0 {
+		t.Errorf("undispatched rows remain = %d, want 0", got)
+	}
 }
