@@ -79,10 +79,30 @@ k6 WebSocket load test under [`loadtest/`](loadtest/README.md), ported from
 questions — the concurrent-connection ceiling and the message-rate ceiling — and
 compares them against the single-instance baseline. See
 [`loadtest/README.md`](loadtest/README.md) for how to run the sweeps and
-[`loadtest/BASELINE.md`](loadtest/BASELINE.md) to record the numbers.
+[`loadtest/BASELINE.md`](loadtest/BASELINE.md) for the recorded numbers.
 
 ```powershell
 docker compose up -d
 ./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000
 ./loadtest/summarize.ps1  -Dir loadtest/results/3x200m/conn
 ```
+
+### Results (this configuration: 3×200 MB + Redis, nginx round-robin)
+
+**Message-rate ceiling: ≈ 8 537 delivered msg/s at 10 000 sockets** (1 000 rooms
+× 10 users, completeness 99.1 %) — vs ≈ 5 542 msg/s for single-instance on the
+same 600 MB aggregate budget, a **~54 % win**. Handshakes stayed at 100 % on
+every step; the break past the ceiling is a completeness collapse (delivery stops
+tracking the offered rate, 70 % → 0 % over two steps), i.e. the relay → Redis →
+fan-out pipeline saturates, not the connections. Full tables and the 1-vs-N diff
+are in [`loadtest/BASELINE.md`](loadtest/BASELINE.md).
+
+**Conclusion — the ceiling belongs to round-robin, not to the design.** nginx
+round-robins every connection, so a room's members are scattered across all
+three instances and Redis must deliver each message to *every* instance holding
+a member — cross-instance amplification that grows with the instance count.
+Sending all of a room's connections to the **same instance** (room-affinity at
+nginx, `hash $arg_room consistent`) would turn that fan-out into an in-process
+write with ~1 Redis delivery per message. That is the next experiment:
+[`docs/plans/2026-07-09-room-affinity-routing.md`](docs/plans/2026-07-09-room-affinity-routing.md)
+— measure which resource is actually the wall first, then flip the routing.
