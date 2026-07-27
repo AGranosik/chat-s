@@ -3,6 +3,9 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type OutboxEvent struct {
@@ -11,45 +14,49 @@ type OutboxEvent struct {
 	Payload []byte
 }
 
-func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func([]OutboxEvent) error) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+const rollbackTimeout = 5 * time.Second
+
+func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(context.Context, []OutboxEvent) error) (int, error) {
+
+	if batchSize <= 0 {
+		return 0, fmt.Errorf("batch size must be positive, got %d", batchSize)
 	}
 
-	defer tx.Rollback(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+
+	defer func() {
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+		defer cancel()
+		_ = tx.Rollback(rollbackCtx)
+	}()
+
 	rows, err := tx.Query(ctx,
 		`select id, room_id, payload
 			 from outbox
 			 where dispatched_at is null
 			 order by id
-			 limit $1`,
+			 limit $1
+			 for update skip locked`,
 		batchSize)
 
 	if err != nil {
-		return fmt.Errorf("claim outbox: %w", err)
+		return 0, fmt.Errorf("claim outbox: %w", err)
 	}
 
-	events := make([]OutboxEvent, 0, batchSize)
-
-	for rows.Next() {
-		var event OutboxEvent
-
-		if err := rows.Scan(&event.ID, &event.RoomID, &event.Payload); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan outbox: %w", err)
-		}
-
-		events = append(events, event)
-	}
-
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("claim outbox: %w", err)
+	events, err := pgx.AppendRows(make([]OutboxEvent, 0, batchSize), rows, pgx.RowToStructByName[OutboxEvent])
+	if err != nil {
+		return 0, fmt.Errorf("scan outbox: %w", err)
 	}
 
 	if len(events) == 0 {
-		return nil
+		return 0, nil
+	}
+
+	if err := dispatch(ctx, events); err != nil {
+		return 0, fmt.Errorf("dispatch outbox batch of %d: %w", len(events), err)
 	}
 
 	ids := make([]int64, 0, len(events))
@@ -58,19 +65,18 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 		ids = append(ids, e.ID)
 	}
 
-	if err := dispatch(events); err != nil {
-		return err
-	}
-
 	if _, err := tx.Exec(ctx,
-		`update outbox set dispatched_at = now() where id = any($1)`, ids,
+		`update outbox
+			 set dispatched_at = now()
+			 where id = any($1) and dispatched_at is null`,
+		ids,
 	); err != nil {
-		return fmt.Errorf("mark dispatched: %w", err)
+		return 0, fmt.Errorf("mark dispatched: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return err
+		return 0, fmt.Errorf("commit outbox batch: %w", err)
 	}
 
-	return nil
+	return len(events), nil
 }

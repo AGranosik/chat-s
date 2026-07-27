@@ -6,7 +6,7 @@ create table outbox (
     created_at    timestamptz not null default now(),
     dispatched_at timestamptz
 );
-create index outbox_undispatched_idx on outbox (dispatched_at, id);
+create index outbox_undispatched_idx on outbox (id) where dispatched_at is null;
 
 -- +goose Down
 drop table outbox;
