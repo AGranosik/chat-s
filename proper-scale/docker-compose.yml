@@ -83,11 +83,12 @@ services:
     build:
       context: ./services/relay_service
       dockerfile: Dockerfile
-    container_name: chat-server
+    container_name: chat-relay
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
       HTTP_ADDR: ":8080"
     expose:
       - "8080" # internal only: reachable by nginx on the compose network, never published to the host
@@ -101,8 +102,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 80m          
-          
+          memory: 80m
+
 
   redis:
     image: redis:7-alpine

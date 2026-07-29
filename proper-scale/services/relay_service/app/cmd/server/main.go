@@ -5,40 +5,35 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"relayservice/app/config"
+	"relayservice/app/services"
+	"relayservice/app/storage"
 	"syscall"
-	"time"
 )
 
 func main() {
 	// addr := config.GetEnv("HTTP_ADDR", ":8080")
-	// dsn := config.GetEnv("DATABASE_URL", "postgres://chat:chat@localhost:5432/chat?sslmode=disable")
+	db := config.GetEnv("DATABASE_URL", "postgres://chat:chat@localhost:5432/chat?sslmode=disable")
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	done := make(chan struct{})
-	go runWorker(ctx, done)
+	err := storage.Migrate(ctx, db)
+	if err != nil {
+		log.Panicln("Cannot migrate.")
+	}
 
+	pool, err := storage.Connect(ctx, db)
+
+	if err != nil {
+		log.Panicln("Cannot connect to db.")
+	}
+
+	store := storage.New(pool)
+	relay := services.New(store)
+
+	go relay.Run(ctx)
 	<-ctx.Done()
 	<-done
 	log.Println("service stopped cleanly")
-}
-
-func runWorker(ctx context.Context, done chan struct{}) {
-	defer close(done)
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("worker: draining and exiting")
-			return
-		case <-ticker.C:
-			doWork()
-		}
-	}
-}
-
-func doWork() {
-	log.Println("doing background work...")
 }

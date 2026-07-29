@@ -2,7 +2,14 @@ package services
 
 import (
 	"context"
+	"log"
 	"relayservice/app/storage"
+	"time"
+)
+
+const (
+	batchSize    = 100
+	pollInterval = 2 * time.Second
 )
 
 type outboxStore interface {
@@ -16,5 +23,37 @@ type Relay struct {
 func New(store *storage.Store) *Relay {
 	return &Relay{
 		store: store,
+	}
+}
+
+func (r *Relay) Run(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("worker: draining and exiting")
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (r *Relay) drain(ctx context.Context) error {
+	for {
+		n, err := r.store.DispatchBatch(ctx, batchSize, func(
+			ctx context.Context,
+			event []storage.OutboxEvent,
+		) error {
+			log.Println("drain")
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if n < batchSize {
+			return nil // a short batch (including 0) means the outbox is drained
+		}
 	}
 }
