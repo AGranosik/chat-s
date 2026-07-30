@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gofiber/fiber/v3/log"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -38,8 +39,7 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 			 from outbox
 			 where dispatched_at is null
 			 order by id
-			 limit $1
-			 for update skip locked`,
+			 limit $1`,
 		batchSize)
 
 	if err != nil {
@@ -52,6 +52,7 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 	}
 
 	if len(events) == 0 {
+		log.Info("Any message to dispatch")
 		return 0, nil
 	}
 
@@ -78,5 +79,7 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 		return 0, fmt.Errorf("commit outbox batch: %w", err)
 	}
 
-	return len(events), nil
+	len := len(events)
+	log.Info("Drainded %s events", len)
+	return len, nil
 }

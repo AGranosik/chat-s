@@ -23,7 +23,6 @@ func main() {
 	if err != nil {
 		log.Panicln("Cannot migrate.")
 	}
-
 	pool, err := storage.Connect(ctx, db)
 
 	if err != nil {

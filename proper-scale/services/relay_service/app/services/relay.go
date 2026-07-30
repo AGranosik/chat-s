@@ -31,6 +31,9 @@ func (r *Relay) Run(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
+		if err := r.drain(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("outbox relay drain error | err=%v", err)
+		}
 		select {
 		case <-ctx.Done():
 			log.Println("worker: draining and exiting")
