@@ -11,6 +11,7 @@ import (
 	"syscall"
 )
 
+// drain and migratiosn doesnt work
 func main() {
 	// addr := config.GetEnv("HTTP_ADDR", ":8080")
 	db := config.GetEnv("DATABASE_URL", "postgres://chat:chat@localhost:5432/chat?sslmode=disable")

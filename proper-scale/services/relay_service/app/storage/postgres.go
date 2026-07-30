@@ -11,8 +11,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// Migrate applies all goose migrations on boot, using a short-lived
-// database/sql connection (goose speaks database/sql; the app speaks pgx).
 func Migrate(ctx context.Context, dsn string) error {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
