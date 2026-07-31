@@ -34,12 +34,15 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 		_ = tx.Rollback(rollbackCtx)
 	}()
 
+	// single instance for now.
+	// its get tricky when start to scale because relay may be sending messages not ordered
 	rows, err := tx.Query(ctx,
 		`select id, room_id, payload
 			 from outbox
 			 where dispatched_at is null
 			 order by id
-			 limit $1`,
+			 limit $1
+			 for update skip locked`,
 		batchSize)
 
 	if err != nil {
@@ -79,7 +82,7 @@ func (s *Store) DispatchBatch(ctx context.Context, batchSize int, dispatch func(
 		return 0, fmt.Errorf("commit outbox batch: %w", err)
 	}
 
-	len := len(events)
-	log.Info("Drainded %s events", len)
-	return len, nil
+	eventsLen := len(events)
+	log.Info("Drainded %s events", eventsLen)
+	return eventsLen, nil
 }

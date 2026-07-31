@@ -30,7 +30,7 @@ func main() {
 	}
 
 	store := storage.New(pool)
-	relay := services.New(store)
+	relay := services.NewRelay(store)
 
 	go relay.Run(ctx)
 	<-ctx.Done()

@@ -13,14 +13,14 @@ const (
 )
 
 type outboxStore interface {
-	DispatchBatch(ctx context.Context) (int, error)
+	DispatchBatch(ctx context.Context, batchSize int, dispatch func(context.Context, []storage.OutboxEvent) error) (int, error)
 }
 
 type Relay struct {
-	store *storage.Store
+	store outboxStore
 }
 
-func New(store *storage.Store) *Relay {
+func NewRelay(store outboxStore) *Relay {
 	return &Relay{
 		store: store,
 	}

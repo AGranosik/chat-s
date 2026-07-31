@@ -9,8 +9,12 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.2 // indirect
+	github.com/gofiber/utils/v2 v2.1.1 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/sethvargo/go-retry v0.4.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/fasthttp v1.72.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 )
 
@@ -34,6 +38,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/gofiber/fiber/v3 v3.4.0
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
