@@ -27,12 +27,12 @@ func NewRelay(store outboxStore) *Relay {
 }
 
 func (r *Relay) Run(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
 		if err := r.drain(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("outbox relay drain error | err=%v", err)
+			log.Panicf("outbox relay drain error | err=%v", err)
 		}
 		select {
 		case <-ctx.Done():
