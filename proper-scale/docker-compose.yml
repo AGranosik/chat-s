@@ -79,6 +79,29 @@ services:
       resources:
         limits:
           memory: 80m
+  grpc:
+    build:
+      context: ./services/grpcClient
+      dockerfile: Dockerfile
+    container_name: grpc
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HTTP_ADDR: ":8080"
+    expose:
+      - "8080" # internal only: reachable by nginx on the compose network, never published to the host
+    restart: on-failure
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    sysctls:
+      net.core.somaxconn: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 80m          
   relay_service:
     build:
       context: ./services/relay_service
@@ -121,25 +144,25 @@ services:
         limits:
           memory: 200m
 
-  server1:
-    <<: *server
-    container_name: chat-server-1
+  # server1:
+  #   <<: *server
+  #   container_name: chat-server-1
 
-  server2:
-    <<: *server
-    container_name: chat-server-2
+  # server2:
+  #   <<: *server
+  #   container_name: chat-server-2
 
-  server3:
-    <<: *server
-    container_name: chat-server-3
+  # server3:
+  #   <<: *server
+  #   container_name: chat-server-3
 
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
-    depends_on:
-      - server1
-      - server2
-      - server3
+    # depends_on:
+    #   - server1
+    #   - server2
+    #   - server3
     ports:
       - "80:80"
     ulimits:
