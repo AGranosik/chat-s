@@ -4,7 +4,7 @@
 // 	protoc        v7.36.1
 // source: contracts/protos/presence_service.proto
 
-package myservicev1
+package contractsv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -21,27 +21,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GetUserRequest struct {
+type ConnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Dial          string                 `protobuf:"bytes,2,opt,name=dial,proto3" json:"dial,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetUserRequest) Reset() {
-	*x = GetUserRequest{}
+func (x *ConnectUserRequest) Reset() {
+	*x = ConnectUserRequest{}
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetUserRequest) String() string {
+func (x *ConnectUserRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetUserRequest) ProtoMessage() {}
+func (*ConnectUserRequest) ProtoMessage() {}
 
-func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
+func (x *ConnectUserRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -53,41 +54,46 @@ func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
-func (*GetUserRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConnectUserRequest.ProtoReflect.Descriptor instead.
+func (*ConnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetUserRequest) GetUserId() string {
+func (x *ConnectUserRequest) GetClientId() string {
 	if x != nil {
-		return x.UserId
+		return x.ClientId
 	}
 	return ""
 }
 
-type GetUserResponse struct {
+func (x *ConnectUserRequest) GetDial() string {
+	if x != nil {
+		return x.Dial
+	}
+	return ""
+}
+
+type UserConnectionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetUserResponse) Reset() {
-	*x = GetUserResponse{}
+func (x *UserConnectionResponse) Reset() {
+	*x = UserConnectionResponse{}
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetUserResponse) String() string {
+func (x *UserConnectionResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetUserResponse) ProtoMessage() {}
+func (*UserConnectionResponse) ProtoMessage() {}
 
-func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
+func (x *UserConnectionResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -99,45 +105,30 @@ func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
-func (*GetUserResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UserConnectionResponse.ProtoReflect.Descriptor instead.
+func (*UserConnectionResponse) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetUserResponse) GetId() string {
+func (x *UserConnectionResponse) GetSuccess() bool {
 	if x != nil {
-		return x.Id
+		return x.Success
 	}
-	return ""
-}
-
-func (x *GetUserResponse) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *GetUserResponse) GetEmail() string {
-	if x != nil {
-		return x.Email
-	}
-	return ""
+	return false
 }
 
 var File_contracts_protos_presence_service_proto protoreflect.FileDescriptor
 
 const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\n" +
-	"'contracts/protos/presence_service.proto\x12\fmyservice.v1\")\n" +
-	"\x0eGetUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"K\n" +
-	"\x0fGetUserResponse\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email2U\n" +
-	"\vUserService\x12F\n" +
-	"\aGetUser\x12\x1c.myservice.v1.GetUserRequest\x1a\x1d.myservice.v1.GetUserResponseB4Z2github.com/you/myrepo/gen/myservice/v1;myservicev1b\x06proto3"
+	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"E\n" +
+	"\x12ConnectUserRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x12\n" +
+	"\x04dial\x18\x02 \x01(\tR\x04dial\"2\n" +
+	"\x16UserConnectionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2`\n" +
+	"\vUserService\x12Q\n" +
+	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a$.cotnracts.v1.UserConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
 
 var (
 	file_contracts_protos_presence_service_proto_rawDescOnce sync.Once
@@ -153,12 +144,12 @@ func file_contracts_protos_presence_service_proto_rawDescGZIP() []byte {
 
 var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_contracts_protos_presence_service_proto_goTypes = []any{
-	(*GetUserRequest)(nil),  // 0: myservice.v1.GetUserRequest
-	(*GetUserResponse)(nil), // 1: myservice.v1.GetUserResponse
+	(*ConnectUserRequest)(nil),     // 0: cotnracts.v1.ConnectUserRequest
+	(*UserConnectionResponse)(nil), // 1: cotnracts.v1.UserConnectionResponse
 }
 var file_contracts_protos_presence_service_proto_depIdxs = []int32{
-	0, // 0: myservice.v1.UserService.GetUser:input_type -> myservice.v1.GetUserRequest
-	1, // 1: myservice.v1.UserService.GetUser:output_type -> myservice.v1.GetUserResponse
+	0, // 0: cotnracts.v1.UserService.Connect:input_type -> cotnracts.v1.ConnectUserRequest
+	1, // 1: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.UserConnectionResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

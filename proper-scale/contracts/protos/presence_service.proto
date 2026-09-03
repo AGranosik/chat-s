@@ -1,19 +1,18 @@
 syntax = "proto3";
 
-package myservice.v1;
+package cotnracts.v1;
 
-option go_package = "github.com/you/myrepo/gen/myservice/v1;myservicev1";
+option go_package = "github.com/AGranosik/chat/contracts;contractsv1";
 
 service UserService {
-  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc Connect(ConnectUserRequest) returns (UserConnectionResponse);
 }
 
-message GetUserRequest {
-  string user_id = 1;
+message ConnectUserRequest {
+  string client_id = 1;
+  string dial = 2;
 }
 
-message GetUserResponse {
-  string id = 1;
-  string name = 2;
-  string email = 3;
+message UserConnectionResponse {
+  bool success = 1;
 }

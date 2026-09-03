@@ -1,60 +1,45 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"context"
+	"log"
+	"net"
 
-	"github.com/andeya/erpc/v7"
+	contractsv1 "github.com/AGranosik/chat/contracts"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
-// Math handler group
-type Math struct {
-	erpc.CallCtx
+// server implements the UserServiceServer interface generated from your .proto
+type server struct {
+	contractsv1.UnimplementedUserServiceServer
 }
 
-// Add handles addition requests: /math/add
-func (m *Math) Add(arg *[]int) (int, *erpc.Status) {
-	// example of reading meta info sent by the client, if any
-	erpc.Infof("author meta: %s", m.PeekMeta("author"))
-	fmt.Println("received message.")
-	var r int
-	for _, a := range *arg {
-		r += a
-	}
-	return r, nil
+// GetUser is called whenever a client sends a GetUserRequest
+func (s *server) ConnectUser(ctx context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.UserConnectionResponse, error) {
+	log.Printf("received message -> client_id=%s dial=%s", req.GetClientId(), req.GetDial())
+
+	// your actual logic goes here (lookup, validation, etc.)
+
+	return &contractsv1.UserConnectionResponse{
+		Success: true,
+	}, nil
 }
 
 func main() {
-	defer erpc.FlushLogger()
-	go erpc.GraceSignal()
+	lis, err := net.Listen("tcp", ":9090")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
 
-	// Create the server peer.
-	srv := erpc.NewPeer(erpc.PeerConfig{
-		CountTime:   true,
-		ListenPort:  9090,
-		PrintDetail: true,
-	})
+	grpcServer := grpc.NewServer()
+	contractsv1.RegisterUserServiceServer(grpcServer, &server{})
 
-	// Optional: enable TLS
-	// srv.SetTLSConfig(erpc.GenerateTLSConfigForServer())
+	// optional but handy for debugging with tools like grpcurl or Postman
+	reflection.Register(grpcServer)
 
-	// Register the Math handler group -> exposes /math/add
-	srv.RouteCall(new(Math))
-
-	// Broadcast a push to all connected sessions every 5 seconds.
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			srv.RangeSession(func(sess erpc.Session) bool {
-				sess.Push(
-					"/push/status",
-					fmt.Sprintf("this is a broadcast, server time: %v", time.Now()),
-				)
-				return true // continue ranging over remaining sessions
-			})
-		}
-	}()
-
-	// Start listening and serving. Blocks until shutdown.
-	srv.ListenAndServe()
+	log.Println("gRPC server listening on :50051")
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }

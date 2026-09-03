@@ -1,10 +1,13 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"time"
 
-	"github.com/andeya/erpc/v7"
+	contractsv1 "github.com/AGranosik/chat/contracts"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // what should be send via grpc?
@@ -18,46 +21,25 @@ import (
 
 //store clients with ttl, remove method and 'refresh'
 
-type Push struct {
-	erpc.PushCtx
-}
-
-// Status handles pushes to /push/status
-func (p *Push) Status(arg *string) *erpc.Status {
-	erpc.Infof("received push: %s", *arg)
-	return nil
-}
-
 func main() {
-	defer erpc.FlushLogger()
-	go erpc.GraceSignal()
+	conn, err := grpc.NewClient("grpc:9090", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
 
-	// Create the client peer.
-	cli := erpc.NewPeer(erpc.PeerConfig{
-		CountTime:   true,
-		PrintDetail: true,
+	client := contractsv1.NewUserServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	resp, err := client.Connect(ctx, &contractsv1.ConnectUserRequest{
+		ClientId: "abc-123",
+		Dial:     "some-value",
 	})
-
-	// Register a handler for pushes coming FROM the server
-	// (eRPC connections are peer-to-peer, so the client can receive
-	// pushes just like the server can).
-	cli.RoutePush(new(Push))
-
-	// Dial the server.
-	sess, stat := cli.Dial("grpc:9090")
-	if !stat.OK() {
-		erpc.Fatalf("dial error: %v", stat)
+	if err != nil {
+		log.Fatalf("call failed: %v", err)
 	}
-
-	// Call the server's Math.Add handler.
-	var result int
-	callStat := sess.Call("/math/add", []int{1, 2, 3}, &result).Status()
-	if !callStat.OK() {
-		erpc.Fatalf("call error: %v", callStat)
-	}
-	fmt.Println("Add result:", result)
-
-	// Keep the connection open a while to receive push broadcasts
-	// from the server before exiting.
+	log.Printf("success=%v", resp.GetSuccess())
 	time.Sleep(20 * time.Second)
 }
