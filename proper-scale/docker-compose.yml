@@ -58,8 +58,8 @@ services:
           memory: 600m
   presence_service:
     build:
-      context: ./services/presence_service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: /services/presence_service/Dockerfile
     container_name: presence_service
     depends_on:
       postgres:
@@ -81,8 +81,8 @@ services:
           memory: 80m
   grpc:
     build:
-      context: ./services/grpcClient
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: /services/grpcClient/Dockerfile
     container_name: grpc
     depends_on:
       postgres:

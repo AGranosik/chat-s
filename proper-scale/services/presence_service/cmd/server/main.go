@@ -16,7 +16,7 @@ type server struct {
 }
 
 // GetUser is called whenever a client sends a GetUserRequest
-func (s *server) ConnectUser(ctx context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.UserConnectionResponse, error) {
+func (s *server) Connect(ctx context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.UserConnectionResponse, error) {
 	log.Printf("received message -> client_id=%s dial=%s", req.GetClientId(), req.GetDial())
 
 	// your actual logic goes here (lookup, validation, etc.)
@@ -38,7 +38,7 @@ func main() {
 	// optional but handy for debugging with tools like grpcurl or Postman
 	reflection.Register(grpcServer)
 
-	log.Println("gRPC server listening on :50051")
+	log.Println("gRPC server listening on :9090")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
