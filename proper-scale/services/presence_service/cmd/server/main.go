@@ -1,30 +1,15 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net"
+	"presenceservice/app"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
-
-// server implements the UserServiceServer interface generated from your .proto
-type server struct {
-	contractsv1.UnimplementedUserServiceServer
-}
-
-// GetUser is called whenever a client sends a GetUserRequest
-func (s *server) Connect(ctx context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.UserConnectionResponse, error) {
-	log.Printf("received message -> client_id=%s dial=%s", req.GetClientId(), req.GetDial())
-
-	// your actual logic goes here (lookup, validation, etc.)
-
-	return &contractsv1.UserConnectionResponse{
-		Success: true,
-	}, nil
-}
 
 func main() {
 	lis, err := net.Listen("tcp", ":9090")
@@ -32,8 +17,15 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "redis:6379", // host:port
+		DB:   0,            // use default DB
+	})
+
 	grpcServer := grpc.NewServer()
-	contractsv1.RegisterUserServiceServer(grpcServer, &server{})
+	contractsv1.RegisterUserServiceServer(grpcServer, &app.GrpcConfig{
+		Rdb: rdb,
+	})
 
 	// optional but handy for debugging with tools like grpcurl or Postman
 	reflection.Register(grpcServer)
