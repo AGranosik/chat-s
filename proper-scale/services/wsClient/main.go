@@ -43,7 +43,7 @@ func main() {
 
 	msg, err := json.Marshal(Client{
 		ClientId: "1",
-		Dial:     "2",
+		Dial:     "3",
 	})
 
 	log.Printf("Sending a msg.")
