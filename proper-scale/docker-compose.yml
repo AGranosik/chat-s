@@ -144,9 +144,9 @@ services:
         limits:
           memory: 200m
 
-  # server1:
-  #   <<: *server
-  #   container_name: chat-server-1
+  server1:
+    <<: *server
+    container_name: chat-server-1
 
   # server2:
   #   <<: *server
@@ -159,8 +159,8 @@ services:
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
-    # depends_on:
-    #   - server1
+    depends_on:
+      - server1
     #   - server2
     #   - server3
     ports:
