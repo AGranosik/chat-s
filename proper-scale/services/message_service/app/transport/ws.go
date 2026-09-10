@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	contractsv1 "github.com/AGranosik/chat/contracts"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,10 +33,13 @@ type Client struct {
 }
 
 type WsHub struct {
+	grpc contractsv1.UserServiceClient
 }
 
-func NewWsHub() *WsHub {
-	return &WsHub{}
+func NewWsHub(grpc contractsv1.UserServiceClient) *WsHub {
+	return &WsHub{
+		grpc: grpc,
+	}
 }
 
 func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +74,7 @@ func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			continue // ignore ping/pong/close control frames here, gorilla handles them
 		}
 
-		if err := handleMessage(data); err != nil {
+		if err := h.handleMessage(data, ctx); err != nil {
 			slog.Warn("bad message, dropping", "err", err)
 			continue // don't kill the connection over one bad message
 		}
@@ -93,7 +97,7 @@ func configureConnection(w http.ResponseWriter, r *http.Request) (*websocket.Con
 	return conn, err
 }
 
-func handleMessage(data []byte) error {
+func (h *WsHub) handleMessage(data []byte, ctx context.Context) error {
 	log.Printf("msg received.")
 	var in Client
 	if err := json.Unmarshal(data, &in); err != nil {
@@ -101,6 +105,11 @@ func handleMessage(data []byte) error {
 		return err
 	}
 	log.Printf("ws decode | client=%s | dial=%s", in.ClientId, in.Dial)
+
+	h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
+		ClientId: in.ClientId,
+		Dial:     in.Dial,
+	})
 	return nil
 }
 

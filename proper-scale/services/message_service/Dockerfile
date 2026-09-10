@@ -3,7 +3,9 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-COPY . .
+COPY services/message_service ./services/message_service
+COPY contracts/protos ./contracts/protos
+WORKDIR /app/services/message_service
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o message_service ./cmd/server
 
@@ -12,8 +14,7 @@ FROM alpine:3.19
 
 RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /app
-COPY --from=builder /app/message_service .
+COPY --from=builder /app/services/message_service .
 
 EXPOSE 8080
 CMD ["./message_service"]
