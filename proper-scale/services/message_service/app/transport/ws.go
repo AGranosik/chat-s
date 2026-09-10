@@ -42,7 +42,9 @@ func NewWsHub(grpc contractsv1.UserServiceClient) *WsHub {
 	}
 }
 
-func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	clientId := r.URL.Query().Get("clientId")
 	dial := r.URL.Query().Get("dial")
 	conn, err := h.configureConnection(w, r, ctx, clientId, dial)
@@ -92,10 +94,14 @@ func (h *WsHub) configureConnection(w http.ResponseWriter, r *http.Request, ctx 
 		return nil
 	})
 
-	h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
+	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
 		ClientId: clientId,
 		Dial:     dial,
 	})
+
+	if !response.Success || err != nil {
+		return nil, err
+	}
 
 	return conn, err
 }
@@ -125,7 +131,7 @@ func runPing(conn *websocket.Conn, ctx context.Context) {
 		select {
 		case <-ticker.C:
 			conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)); err != nil {
 				conn.Close()
 				return
 			}
