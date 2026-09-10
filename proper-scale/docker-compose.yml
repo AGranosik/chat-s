@@ -76,7 +76,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 80m        
+          memory: 80m
+        
   relay_service:
     build:
       context: ./services/relay_service

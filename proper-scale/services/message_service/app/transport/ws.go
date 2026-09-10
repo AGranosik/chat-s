@@ -42,18 +42,16 @@ func NewWsHub(grpc contractsv1.UserServiceClient) *WsHub {
 	}
 }
 
-func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := configureConnection(w, r)
-
+func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request, ctx context.Context) {
+	clientId := r.URL.Query().Get("clientId")
+	dial := r.URL.Query().Get("dial")
+	conn, err := h.configureConnection(w, r, ctx, clientId, dial)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	go runPing(conn, cancel, ctx)
+	defer h.disconnect(clientId, ctx)
+	go runPing(conn, ctx)
 
 	for {
 		msgType, data, err := conn.ReadMessage()
@@ -74,14 +72,14 @@ func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			continue // ignore ping/pong/close control frames here, gorilla handles them
 		}
 
-		if err := h.handleMessage(data, ctx); err != nil {
+		if err := handleMessage(data); err != nil {
 			slog.Warn("bad message, dropping", "err", err)
 			continue // don't kill the connection over one bad message
 		}
 	}
 }
 
-func configureConnection(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+func (h *WsHub) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string, dial string) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -94,10 +92,21 @@ func configureConnection(w http.ResponseWriter, r *http.Request) (*websocket.Con
 		return nil
 	})
 
+	h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
+		ClientId: clientId,
+		Dial:     dial,
+	})
+
 	return conn, err
 }
 
-func (h *WsHub) handleMessage(data []byte, ctx context.Context) error {
+func (h *WsHub) disconnect(clientId string, ctx context.Context) {
+	h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
+		ClientId: clientId,
+	})
+}
+
+func handleMessage(data []byte) error {
 	log.Printf("msg received.")
 	var in Client
 	if err := json.Unmarshal(data, &in); err != nil {
@@ -106,14 +115,10 @@ func (h *WsHub) handleMessage(data []byte, ctx context.Context) error {
 	}
 	log.Printf("ws decode | client=%s | dial=%s", in.ClientId, in.Dial)
 
-	h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
-		ClientId: in.ClientId,
-		Dial:     in.Dial,
-	})
 	return nil
 }
 
-func runPing(conn *websocket.Conn, cancel context.CancelFunc, ctx context.Context) {
+func runPing(conn *websocket.Conn, ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	for {
@@ -121,7 +126,6 @@ func runPing(conn *websocket.Conn, cancel context.CancelFunc, ctx context.Contex
 		case <-ticker.C:
 			conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				cancel()
 				conn.Close()
 				return
 			}

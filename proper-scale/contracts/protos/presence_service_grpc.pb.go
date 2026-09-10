@@ -19,14 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_Connect_FullMethodName = "/cotnracts.v1.UserService/Connect"
+	UserService_Connect_FullMethodName    = "/cotnracts.v1.UserService/Connect"
+	UserService_Disconnect_FullMethodName = "/cotnracts.v1.UserService/Disconnect"
 )
 
 // UserServiceClient is the client API for UserService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserServiceClient interface {
-	Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error)
+	Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
+	Disconnect(ctx context.Context, in *DisconnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 }
 
 type userServiceClient struct {
@@ -37,10 +39,20 @@ func NewUserServiceClient(cc grpc.ClientConnInterface) UserServiceClient {
 	return &userServiceClient{cc}
 }
 
-func (c *userServiceClient) Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error) {
+func (c *userServiceClient) Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UserConnectionResponse)
+	out := new(ConnectionResponse)
 	err := c.cc.Invoke(ctx, UserService_Connect_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) Disconnect(ctx context.Context, in *DisconnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConnectionResponse)
+	err := c.cc.Invoke(ctx, UserService_Disconnect_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +63,8 @@ func (c *userServiceClient) Connect(ctx context.Context, in *ConnectUserRequest,
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 type UserServiceServer interface {
-	Connect(context.Context, *ConnectUserRequest) (*UserConnectionResponse, error)
+	Connect(context.Context, *ConnectUserRequest) (*ConnectionResponse, error)
+	Disconnect(context.Context, *DisconnectUserRequest) (*ConnectionResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -62,8 +75,11 @@ type UserServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedUserServiceServer struct{}
 
-func (UnimplementedUserServiceServer) Connect(context.Context, *ConnectUserRequest) (*UserConnectionResponse, error) {
+func (UnimplementedUserServiceServer) Connect(context.Context, *ConnectUserRequest) (*ConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedUserServiceServer) Disconnect(context.Context, *DisconnectUserRequest) (*ConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Disconnect not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -104,6 +120,24 @@ func _UserService_Connect_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_Disconnect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).Disconnect(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_Disconnect_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).Disconnect(ctx, req.(*DisconnectUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Connect",
 			Handler:    _UserService_Connect_Handler,
+		},
+		{
+			MethodName: "Disconnect",
+			Handler:    _UserService_Disconnect_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

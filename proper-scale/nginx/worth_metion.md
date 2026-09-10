@@ -8,3 +8,5 @@ offline messaging
 multiple devices
 
 groups?? mb try to implement this
+
+self-discovery there is added manually

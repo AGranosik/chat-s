@@ -73,27 +73,27 @@ func (x *ConnectUserRequest) GetDial() string {
 	return ""
 }
 
-type UserConnectionResponse struct {
+type DisconnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UserConnectionResponse) Reset() {
-	*x = UserConnectionResponse{}
+func (x *DisconnectUserRequest) Reset() {
+	*x = DisconnectUserRequest{}
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UserConnectionResponse) String() string {
+func (x *DisconnectUserRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UserConnectionResponse) ProtoMessage() {}
+func (*DisconnectUserRequest) ProtoMessage() {}
 
-func (x *UserConnectionResponse) ProtoReflect() protoreflect.Message {
+func (x *DisconnectUserRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_contracts_protos_presence_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -105,12 +105,56 @@ func (x *UserConnectionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserConnectionResponse.ProtoReflect.Descriptor instead.
-func (*UserConnectionResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use DisconnectUserRequest.ProtoReflect.Descriptor instead.
+func (*DisconnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *UserConnectionResponse) GetSuccess() bool {
+func (x *DisconnectUserRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+type ConnectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionResponse) Reset() {
+	*x = ConnectionResponse{}
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionResponse) ProtoMessage() {}
+
+func (x *ConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionResponse.ProtoReflect.Descriptor instead.
+func (*ConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConnectionResponse) GetSuccess() bool {
 	if x != nil {
 		return x.Success
 	}
@@ -124,11 +168,15 @@ const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"E\n" +
 	"\x12ConnectUserRequest\x12\x1b\n" +
 	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x12\n" +
-	"\x04dial\x18\x02 \x01(\tR\x04dial\"2\n" +
-	"\x16UserConnectionResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2`\n" +
-	"\vUserService\x12Q\n" +
-	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a$.cotnracts.v1.UserConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
+	"\x04dial\x18\x02 \x01(\tR\x04dial\"4\n" +
+	"\x15DisconnectUserRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\".\n" +
+	"\x12ConnectionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2\xb1\x01\n" +
+	"\vUserService\x12M\n" +
+	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12S\n" +
+	"\n" +
+	"Disconnect\x12#.cotnracts.v1.DisconnectUserRequest\x1a .cotnracts.v1.ConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
 
 var (
 	file_contracts_protos_presence_service_proto_rawDescOnce sync.Once
@@ -142,16 +190,19 @@ func file_contracts_protos_presence_service_proto_rawDescGZIP() []byte {
 	return file_contracts_protos_presence_service_proto_rawDescData
 }
 
-var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_contracts_protos_presence_service_proto_goTypes = []any{
-	(*ConnectUserRequest)(nil),     // 0: cotnracts.v1.ConnectUserRequest
-	(*UserConnectionResponse)(nil), // 1: cotnracts.v1.UserConnectionResponse
+	(*ConnectUserRequest)(nil),    // 0: cotnracts.v1.ConnectUserRequest
+	(*DisconnectUserRequest)(nil), // 1: cotnracts.v1.DisconnectUserRequest
+	(*ConnectionResponse)(nil),    // 2: cotnracts.v1.ConnectionResponse
 }
 var file_contracts_protos_presence_service_proto_depIdxs = []int32{
 	0, // 0: cotnracts.v1.UserService.Connect:input_type -> cotnracts.v1.ConnectUserRequest
-	1, // 1: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.UserConnectionResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	1, // 1: cotnracts.v1.UserService.Disconnect:input_type -> cotnracts.v1.DisconnectUserRequest
+	2, // 2: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.ConnectionResponse
+	2, // 3: cotnracts.v1.UserService.Disconnect:output_type -> cotnracts.v1.ConnectionResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -168,7 +219,7 @@ func file_contracts_protos_presence_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contracts_protos_presence_service_proto_rawDesc), len(file_contracts_protos_presence_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

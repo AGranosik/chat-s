@@ -5,14 +5,20 @@ package cotnracts.v1;
 option go_package = "github.com/AGranosik/chat/contracts;contractsv1";
 
 service UserService {
-  rpc Connect(ConnectUserRequest) returns (UserConnectionResponse);
+  rpc Connect(ConnectUserRequest) returns (ConnectionResponse);
+  rpc Disconnect(DisconnectUserRequest) returns (ConnectionResponse);
 }
+
 
 message ConnectUserRequest {
   string client_id = 1;
   string dial = 2;
 }
 
-message UserConnectionResponse {
+message DisconnectUserRequest {
+  string client_id = 1;
+}
+
+message ConnectionResponse {
   bool success = 1;
 }
