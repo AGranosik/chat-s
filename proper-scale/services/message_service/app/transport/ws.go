@@ -3,7 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -99,27 +99,40 @@ func (h *WsHub) configureConnection(w http.ResponseWriter, r *http.Request, ctx 
 		Dial:     dial,
 	})
 
-	if !response.Success || err != nil {
+	if err != nil {
+		slog.Error("connect rpc failed", "err", err)
+		conn.Close()
 		return nil, err
 	}
-
+	if !response.Success {
+		conn.Close()
+		return nil, fmt.Errorf("connect rejected for client %s", clientId)
+	}
 	return conn, err
 }
 
 func (h *WsHub) disconnect(clientId string, ctx context.Context) {
-	h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
+	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
 		ClientId: clientId,
 	})
+
+	if err != nil {
+		slog.Error("disconnection error.", "error", err.Error())
+	}
+
+	if !response.Success {
+		slog.Error("Grpc disconnection failure", "error", err.Error())
+	}
 }
 
 func handleMessage(data []byte) error {
-	log.Printf("msg received.")
+	slog.Info("msg received.")
 	var in Client
 	if err := json.Unmarshal(data, &in); err != nil {
-		log.Printf("ws decode | err=%v", err)
+		slog.Info("ws decode error", "err", err)
 		return err
 	}
-	log.Printf("ws decode | client=%s | dial=%s", in.ClientId, in.Dial)
+	slog.Info("ws decode | client=%s | dial=%s", in.ClientId, in.Dial)
 
 	return nil
 }
