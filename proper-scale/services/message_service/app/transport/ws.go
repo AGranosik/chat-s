@@ -42,6 +42,9 @@ func NewWsHub(grpc contractsv1.UserServiceClient) *WsHub {
 	}
 }
 
+//connection per client
+//dial cfg
+
 func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
