@@ -27,11 +27,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Client struct {
-	ClientId string
-	Dial     string
-}
-
 type WsHub struct {
 	grpc contractsv1.UserServiceClient
 }
