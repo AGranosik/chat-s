@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,22 +26,25 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type WsHub struct {
+type Ws struct {
 	grpc contractsv1.UserServiceClient
+	hub  *Hub
 }
 
-func NewWsHub(grpc contractsv1.UserServiceClient) *WsHub {
-	return &WsHub{
+func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub) *Ws {
+	return &Ws{
 		grpc: grpc,
+		hub:  hub,
 	}
 }
 
 //connection per client
 //dial cfg
 
-func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
+func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	//get room and clientid somehow
 	clientId := r.URL.Query().Get("clientId")
 	dial := r.URL.Query().Get("dial")
 	conn, err := h.configureConnection(w, r, ctx, clientId, dial)
@@ -79,7 +81,7 @@ func (h *WsHub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *WsHub) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string, dial string) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string, dial string) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -109,7 +111,7 @@ func (h *WsHub) configureConnection(w http.ResponseWriter, r *http.Request, ctx 
 	return conn, err
 }
 
-func (h *WsHub) disconnect(clientId string, ctx context.Context) {
+func (h *Ws) disconnect(clientId string, ctx context.Context) {
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
 		ClientId: clientId,
 	})
@@ -121,18 +123,6 @@ func (h *WsHub) disconnect(clientId string, ctx context.Context) {
 	if !response.Success {
 		slog.Error("Grpc disconnection failure", "error", err.Error())
 	}
-}
-
-func handleMessage(data []byte) error {
-	slog.Info("msg received.")
-	var in Client
-	if err := json.Unmarshal(data, &in); err != nil {
-		slog.Info("ws decode error", "err", err)
-		return err
-	}
-	slog.Info("ws decode | client=%s | dial=%s", in.ClientId, in.Dial)
-
-	return nil
 }
 
 func runPing(conn *websocket.Conn, ctx context.Context) {

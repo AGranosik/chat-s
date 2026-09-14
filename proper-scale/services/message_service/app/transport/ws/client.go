@@ -11,3 +11,5 @@ func NewClient(clientId string, dial string) *Client {
 		dial:     dial,
 	}
 }
+
+func (c *Client) CreateConnection()
