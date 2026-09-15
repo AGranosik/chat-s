@@ -23,8 +23,9 @@ const (
 
 type ConnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	Dial          string                 `protobuf:"bytes,2,opt,name=dial,proto3" json:"dial,omitempty"`
+	ClientId      string                 `protobuf:"bytes,3,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -59,9 +60,9 @@ func (*ConnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ConnectUserRequest) GetClientId() string {
+func (x *ConnectUserRequest) GetRoomId() string {
 	if x != nil {
-		return x.ClientId
+		return x.RoomId
 	}
 	return ""
 }
@@ -73,9 +74,17 @@ func (x *ConnectUserRequest) GetDial() string {
 	return ""
 }
 
+func (x *ConnectUserRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
 type DisconnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	ClientId      string                 `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -108,6 +117,13 @@ func (x *DisconnectUserRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DisconnectUserRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *DisconnectUserRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
 }
 
 func (x *DisconnectUserRequest) GetClientId() string {
@@ -165,12 +181,14 @@ var File_contracts_protos_presence_service_proto protoreflect.FileDescriptor
 
 const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\n" +
-	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"E\n" +
-	"\x12ConnectUserRequest\x12\x1b\n" +
-	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12\x12\n" +
-	"\x04dial\x18\x02 \x01(\tR\x04dial\"4\n" +
-	"\x15DisconnectUserRequest\x12\x1b\n" +
-	"\tclient_id\x18\x01 \x01(\tR\bclientId\".\n" +
+	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"^\n" +
+	"\x12ConnectUserRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x12\n" +
+	"\x04dial\x18\x02 \x01(\tR\x04dial\x12\x1b\n" +
+	"\tclient_id\x18\x03 \x01(\tR\bclientId\"M\n" +
+	"\x15DisconnectUserRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x1b\n" +
+	"\tclient_id\x18\x02 \x01(\tR\bclientId\".\n" +
 	"\x12ConnectionResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess2\xb1\x01\n" +
 	"\vUserService\x12M\n" +

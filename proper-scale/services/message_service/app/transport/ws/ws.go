@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+//working on architecture
+
 const (
 	writeTimeout    = 10 * time.Second
 	pongWait        = 60 * time.Second
@@ -27,14 +29,16 @@ var upgrader = websocket.Upgrader{
 }
 
 type Ws struct {
-	grpc contractsv1.UserServiceClient
-	hub  *Hub
+	grpc        contractsv1.UserServiceClient
+	hub         *Hub
+	serviceDial string
 }
 
-func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub) *Ws {
+func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) *Ws {
 	return &Ws{
-		grpc: grpc,
-		hub:  hub,
+		grpc:        grpc,
+		hub:         hub,
+		serviceDial: serviceDial,
 	}
 }
 
@@ -45,8 +49,11 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	//get room and clientid somehow
-	clientId := r.URL.Query().Get("clientId")
-	dial := r.URL.Query().Get("dial")
+	//connect via room id and dial
+	//dialid from context
+	//hub. register ->
+	// hub.send -> service
+	roomId := r.URL.Query().Get("roomId")
 	conn, err := h.configureConnection(w, r, ctx, clientId, dial)
 	if err != nil {
 		return
@@ -81,7 +88,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string, dial string) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, roomId string) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -95,8 +102,8 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	})
 
 	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
-		ClientId: clientId,
-		Dial:     dial,
+		RoomId: roomId,
+		Dial:   h.serviceDial,
 	})
 
 	if err != nil {
@@ -106,14 +113,14 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	}
 	if !response.Success {
 		conn.Close()
-		return nil, fmt.Errorf("connect rejected for client %s", clientId)
+		return nil, fmt.Errorf("connect rejected for client %s", roomId)
 	}
 	return conn, err
 }
 
-func (h *Ws) disconnect(clientId string, ctx context.Context) {
+func (h *Ws) disconnect(roomId string, ctx context.Context) {
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
-		ClientId: clientId,
+		ClientId: roomId,
 	})
 
 	if err != nil {

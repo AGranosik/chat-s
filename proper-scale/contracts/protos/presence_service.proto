@@ -11,12 +11,14 @@ service UserService {
 
 
 message ConnectUserRequest {
-  string client_id = 1;
+  string room_id = 1;
   string dial = 2;
+  string client_id =3;
 }
 
 message DisconnectUserRequest {
-  string client_id = 1;
+  string room_id = 1;
+  string client_id =2;
 }
 
 message ConnectionResponse {
