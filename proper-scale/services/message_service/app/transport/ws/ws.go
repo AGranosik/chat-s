@@ -1,4 +1,4 @@
-package transport
+package ws
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//working on architecture 
+//working on architecture
 
 const (
 	writeTimeout    = 10 * time.Second
@@ -28,6 +28,14 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type Message struct {
+	fromClientId string
+}
+
+type clientConnection struct {
+	ClientId string
+}
+
 type Ws struct {
 	grpc        contractsv1.UserServiceClient
 	hub         *Hub
@@ -42,24 +50,23 @@ func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) 
 	}
 }
 
-//connection per client
-//dial cfg
+// ws -> presence.connect. opens conn for client which is read to receive messages
+// handle message -> kafka publish
 
 func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	//get room and clientid somehow
-	//connect via room id and dial
-	//dialid from context
-	//hub. register ->
-	// hub.send -> service
-	roomId := r.URL.Query().Get("roomId")
-	conn, err := h.configureConnection(w, r, ctx, clientId, dial)
+	clientId := r.URL.Query().Get("clientId")
+	conn, err := h.configureConnection(w, r, ctx, clientConnection{
+		ClientId: clientId,
+	})
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-	defer h.disconnect(clientId, ctx)
+	defer h.disconnect(clientConnection{
+		ClientId: clientId,
+	}, ctx)
 	go runPing(conn, ctx)
 
 	for {
@@ -88,7 +95,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, roomId string) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, client clientConnection) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -102,8 +109,8 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	})
 
 	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
-		RoomId: roomId,
-		Dial:   h.serviceDial,
+		Dial:     h.serviceDial,
+		ClientId: client.ClientId,
 	})
 
 	if err != nil {
@@ -113,14 +120,14 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	}
 	if !response.Success {
 		conn.Close()
-		return nil, fmt.Errorf("connect rejected for client %s", roomId)
+		return nil, fmt.Errorf("connect rejected for client %s", client.ClientId)
 	}
 	return conn, err
 }
 
-func (h *Ws) disconnect(roomId string, ctx context.Context) {
+func (h *Ws) disconnect(client clientConnection, ctx context.Context) {
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
-		ClientId: roomId,
+		ClientId: client.ClientId,
 	})
 
 	if err != nil {
@@ -147,4 +154,9 @@ func runPing(conn *websocket.Conn, ctx context.Context) {
 			return
 		}
 	}
+}
+
+func handleMessage(data []byte) error {
+	//publish to kafka here
+	return nil
 }

@@ -2,11 +2,11 @@ package transport
 
 import (
 	"log"
-	"messages/app/transport"
+	"messages/app/transport/ws"
 	"net/http"
 )
 
-func CreateHttpTransport(port string, hub *transport.Ws) {
+func CreateHttpTransport(port string, hub *ws.Ws) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS)
 

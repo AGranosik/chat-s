@@ -1,4 +1,4 @@
-package transport
+package ws
 
 type Client struct {
 	clientId string

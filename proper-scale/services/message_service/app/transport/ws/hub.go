@@ -1,4 +1,4 @@
-package transport
+package ws
 
 import (
 	"messages/chat"

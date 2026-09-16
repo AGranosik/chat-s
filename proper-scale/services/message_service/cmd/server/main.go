@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
-	"messages/app/transport"
+	transport "messages/app/transport"
+	ws "messages/app/transport/ws"
+	"messages/chat"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
 	"google.golang.org/grpc"
@@ -20,7 +22,12 @@ func main() {
 	defer conn.Close()
 
 	client := contractsv1.NewUserServiceClient(conn)
-	hub := transport.NewWsHub(client)
+	chatService := chat.NewChatService()
+	hub, error := ws.NewHub(chatService)
+	if error != nil {
+		log.Fatalf("hub creation failure: %v", error)
+	}
+	ws := ws.NewWsHub(client, hub, "chat-server-1:9090")
 
-	transport.CreateHttpTransport(":8080", hub)
+	transport.CreateHttpTransport(":8080", ws)
 }
