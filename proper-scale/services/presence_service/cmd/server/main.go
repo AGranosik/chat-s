@@ -22,10 +22,11 @@ func main() {
 		DB:   0,            // use default DB
 	})
 
-	grpcServer := grpc.NewServer()
-	contractsv1.RegisterUserServiceServer(grpcServer, &app.GrpcConfig{
+	g := &app.GrpcConfig{
 		Rdb: rdb,
-	})
+	}
+	grpcServer := grpc.NewServer()
+	contractsv1.RegisterUserServiceServer(grpcServer, g)
 
 	// optional but handy for debugging with tools like grpcurl or Postman
 	reflection.Register(grpcServer)

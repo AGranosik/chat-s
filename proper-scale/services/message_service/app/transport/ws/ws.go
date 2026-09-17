@@ -2,8 +2,10 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"messages/chat"
 	"net/http"
 	"time"
 
@@ -28,10 +30,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Message struct {
-	fromClientId string
-}
-
 type clientConnection struct {
 	ClientId string
 }
@@ -40,6 +38,7 @@ type Ws struct {
 	grpc        contractsv1.UserServiceClient
 	hub         *Hub
 	serviceDial string
+	chatService *chat.ChatService
 }
 
 func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) *Ws {
@@ -68,6 +67,8 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 		ClientId: clientId,
 	}, ctx)
 	go runPing(conn, ctx)
+
+	h.hub.Register(clientId)
 
 	for {
 		msgType, data, err := conn.ReadMessage()
@@ -156,7 +157,14 @@ func runPing(conn *websocket.Conn, ctx context.Context) {
 	}
 }
 
-func handleMessage(data []byte) error {
-	//publish to kafka here
+func (h *Ws) handleMessage(data []byte) error {
+	var message chat.Message
+
+	err := json.Unmarshal(data, &message)
+	if err != nil {
+		return err
+	}
+
+	h.hub.SendMessage(message)
 	return nil
 }

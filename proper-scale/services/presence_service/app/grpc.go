@@ -32,7 +32,7 @@ func (s *GrpcConfig) Connect(ctx context.Context, req *contractsv1.ConnectUserRe
 	}, nil
 }
 
-func (s *GrpcConfig) Disconnect(ctx context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+func (s *GrpcConfig) Disconnect(ctx context.Context, req *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
 	clientId := req.GetClientId()
 	log.Printf("Disconnect client: client_id=%s", clientId)
 

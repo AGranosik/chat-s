@@ -6,47 +6,30 @@ import (
 )
 
 type Hub struct {
-	connections map[string][]Client
+	connections map[string]struct{}
 	mu          sync.RWMutex
 	s           *chat.ChatService
 }
 
 func NewHub(service *chat.ChatService) (*Hub, error) {
 	return &Hub{
-		connections: make(map[string][]Client),
+		connections: make(map[string]struct{}),
 		s:           service,
 	}, nil
 }
 
-func (h *Hub) Register(roomId string, client Client) error {
+func (h *Hub) Register(clientId string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.connections[roomId] = append(h.connections[roomId], client)
+	h.connections[clientId] = struct{}{}
 	return nil
 }
 
-func (h *Hub) Unregister(roomId string, client Client) error {
+func (h *Hub) Unregister(clientId string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	room, ok := h.connections[roomId]
-	if !ok {
-		return nil
-	}
-
-	for i, c := range room {
-		if c.clientId == client.clientId {
-			room[i] = room[len(room)-1]
-			room = room[:len(room)-1]
-			break
-		}
-	}
-
-	if len(room) == 0 {
-		delete(h.connections, roomId)
-	} else {
-		h.connections[roomId] = room
-	}
+	delete(h.connections, clientId)
 
 	return nil
 }
