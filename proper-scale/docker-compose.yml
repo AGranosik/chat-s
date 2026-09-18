@@ -8,6 +8,8 @@ x-server: &server
     context: .
     dockerfile: /services/message_service/Dockerfile
   depends_on:
+    kafka:
+      condition: service_healthy      
     postgres:
       condition: service_healthy
     redis:
@@ -33,6 +35,7 @@ x-server: &server
       limits:
         memory: 145m
 
+
 services:
   postgres:
     image: postgres:16
@@ -54,6 +57,63 @@ services:
           # Fixed DB budget so Postgres doesn't eat host RAM and mask the
           # servers' own memory wall.
           memory: 600m
+  kafka:
+    image: apache/kafka:4.2.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "29092:29092" # host-machine connections (Go binaries you run directly, not in Docker)
+      # port 9092 is NOT published to the host on purpose — it's only for
+      # other containers on this compose network (kafka-ui, your chat-server, etc),
+      # which reach it via the service name "kafka", not localhost.
+ 
+    environment:
+      # --- KRaft (no Zookeeper needed from Kafka 4.x onward) ---
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk   # any fixed base64-ish string works; must not change once formatted
+ 
+      # --- Listeners: two client listeners, one per audience ---
+      # PLAINTEXT      -> for other containers on this network (advertised as "kafka")
+      # PLAINTEXT_HOST -> for processes on your host machine (advertised as "localhost")
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+ 
+      # --- Single-broker cluster: replication/ISR must be 1, not the Kafka defaults of 3 ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+ 
+      # --- Convenience for local dev; turn off if you want explicit topic creation ---
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+ 
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+ 
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+ 
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+ 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"   # browse to http://localhost:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092   # internal Docker network address, not localhost
+    depends_on:
+      kafka:
+        condition: service_healthy  
   presence_service:
     build:
       context: .
@@ -152,3 +212,6 @@ services:
         limits:
           # Headroom so nginx is never the wall — the 3x200m servers are the SUT.
           memory: 512m
+
+volumes:
+  kafka-data:

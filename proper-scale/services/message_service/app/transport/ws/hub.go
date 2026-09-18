@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"messages/chat"
 	"sync"
 )
@@ -34,6 +35,6 @@ func (h *Hub) Unregister(clientId string) error {
 	return nil
 }
 
-func (h *Hub) SendMessage(roomId string, data []byte) error {
-	return h.s.HandleIncoming(roomId, data)
+func (h *Hub) SendMessage(message chat.Message, ctx context.Context) error {
+	return h.s.HandleIncoming(message, ctx)
 }

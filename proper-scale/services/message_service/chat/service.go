@@ -1,11 +1,13 @@
 package chat
 
-import "encoding/json"
+import (
+	"context"
+	"encoding/json"
+)
 
 type Message struct {
-	RoomID   string          `json:"room_id"`
-	ClientID string          `json:"client_id"`
-	Payload  json.RawMessage `json:"payload"`
+	RoomID  string          `json:"room_id"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 type ChatService struct {
@@ -18,7 +20,8 @@ func NewChatService(p MessagePublisher) *ChatService {
 	}
 }
 
-func (c *ChatService) HandleIncoming(m Message) error {
-	//kafka there no need of outbox
+func (c *ChatService) HandleIncoming(m Message, ctx context.Context) error {
+
+	c.publisher.Publish(ctx, "messages", m.RoomID, m.Payload)
 	return nil
 }

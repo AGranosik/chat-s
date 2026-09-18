@@ -89,7 +89,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 			continue // ignore ping/pong/close control frames here, gorilla handles them
 		}
 
-		if err := handleMessage(data); err != nil {
+		if err := h.handleMessage(data, ctx); err != nil {
 			slog.Warn("bad message, dropping", "err", err)
 			continue // don't kill the connection over one bad message
 		}
@@ -157,7 +157,7 @@ func runPing(conn *websocket.Conn, ctx context.Context) {
 	}
 }
 
-func (h *Ws) handleMessage(data []byte) error {
+func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
 	var message chat.Message
 
 	err := json.Unmarshal(data, &message)
@@ -165,6 +165,6 @@ func (h *Ws) handleMessage(data []byte) error {
 		return err
 	}
 
-	h.hub.SendMessage(message)
+	h.hub.SendMessage(message, ctx)
 	return nil
 }
