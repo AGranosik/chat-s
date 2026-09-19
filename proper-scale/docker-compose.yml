@@ -90,7 +90,7 @@ services:
  
       # --- Convenience for local dev; turn off if you want explicit topic creation ---
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
- 
+      KAFKA_NUM_PARTITIONS: 6
       KAFKA_LOG_DIRS: /var/lib/kafka/data
  
     volumes:

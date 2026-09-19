@@ -13,8 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//working on architecture
-
 const (
 	writeTimeout    = 10 * time.Second
 	pongWait        = 60 * time.Second
@@ -32,13 +30,13 @@ var upgrader = websocket.Upgrader{
 
 type clientConnection struct {
 	ClientId string
+	Conn     *websocket.Conn
 }
 
 type Ws struct {
 	grpc        contractsv1.UserServiceClient
 	hub         *Hub
 	serviceDial string
-	chatService *chat.ChatService
 }
 
 func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) *Ws {
@@ -49,23 +47,24 @@ func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) 
 	}
 }
 
-// ws -> presence.connect. opens conn for client which is read to receive messages
-// handle message -> kafka publish
-
 func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	clientId := r.URL.Query().Get("clientId")
-	conn, err := h.configureConnection(w, r, ctx, clientConnection{
+	if len(clientId) == 0 {
+		slog.Error("No client id.")
+		return
+	}
+	clientConnection := &clientConnection{
 		ClientId: clientId,
-	})
+	}
+	conn, err := h.configureConnection(w, r, ctx, clientConnection)
 	if err != nil {
 		return
 	}
+	slog.Info("client connected", "clientId", clientId)
 	defer conn.Close()
-	defer h.disconnect(clientConnection{
-		ClientId: clientId,
-	}, ctx)
+	defer h.disconnect(clientConnection, ctx)
 	go runPing(conn, ctx)
 
 	h.hub.Register(clientId)
@@ -96,7 +95,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, client clientConnection) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, client *clientConnection) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -123,20 +122,26 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 		conn.Close()
 		return nil, fmt.Errorf("connect rejected for client %s", client.ClientId)
 	}
+
+	client.Conn = conn
 	return conn, err
 }
 
-func (h *Ws) disconnect(client clientConnection, ctx context.Context) {
+func (h *Ws) disconnect(client *clientConnection, ctx context.Context) {
+	defer client.Conn.Close()
+	defer h.hub.Unregister(client.ClientId)
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
 		ClientId: client.ClientId,
 	})
 
 	if err != nil {
 		slog.Error("disconnection error.", "error", err.Error())
+		return
 	}
 
 	if !response.Success {
 		slog.Error("Grpc disconnection failure", "error", err.Error())
+		return
 	}
 }
 

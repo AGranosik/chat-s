@@ -6,8 +6,12 @@ import (
 	"github.com/IBM/sarama"
 )
 
+const (
+	topic = "messages"
+)
+
 type MessagePublisher interface {
-	Publish(ctx context.Context, topic, key string, value []byte) error
+	Publish(ctx context.Context, roomId string, value []byte) error
 }
 
 type kafkaPublisher struct {
@@ -20,10 +24,13 @@ func NewPublisher(producer sarama.SyncProducer) MessagePublisher {
 	}
 }
 
-func (p *kafkaPublisher) Publish(ctx context.Context, topic, key string, value []byte) error {
+// TODO:
+// unit tests
+// load tests
+func (p *kafkaPublisher) Publish(ctx context.Context, roomId string, value []byte) error {
 	_, _, err := p.producer.SendMessage(&sarama.ProducerMessage{
 		Topic: topic,
-		Key:   sarama.StringEncoder(key),
+		Key:   sarama.StringEncoder(roomId),
 		Value: sarama.ByteEncoder(value),
 	})
 	return err

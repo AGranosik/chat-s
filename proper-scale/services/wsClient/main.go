@@ -11,13 +11,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Client struct {
-	ClientId string
-	Dial     string
+type Message struct {
+	RoomID  string          `json:"room_id"`
+	Payload json.RawMessage `json:"payload"`
 }
 
 func main() {
 	u := url.URL{Scheme: "ws", Host: "localhost:80", Path: "/ws"}
+
+	q := u.Query()
+	q.Set("clientId", "abc123")
+	u.RawQuery = q.Encode()
 	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -41,9 +45,11 @@ func main() {
 		}
 	}()
 
-	msg, err := json.Marshal(Client{
-		ClientId: "1",
-		Dial:     "3",
+	payload := "test msg."
+	serialized, _ := json.Marshal(payload)
+	msg, err := json.Marshal(Message{
+		RoomID:  "2",
+		Payload: serialized,
 	})
 
 	log.Printf("Sending a msg.")
