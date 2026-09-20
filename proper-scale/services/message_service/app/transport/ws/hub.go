@@ -44,8 +44,9 @@ func (h *Hub) Unregister(clientId string) error {
 	return nil
 }
 
-// it should send to connect client or just pass through to kafka
-// seprate method to handle incoming?
-func (h *Hub) SendMessage(message chat.Message, ctx context.Context) error {
+func (h *Hub) HandleIncoming(message chat.Message, ctx context.Context) error {
 	return h.s.HandleIncoming(ctx, message)
+}
+
+func (h *Hub) SendMessage(message chat.Message, ctx context.Context) error {
 }

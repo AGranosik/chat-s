@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"fmt"
 	"messages/chat"
 	"testing"
 )
@@ -24,14 +25,14 @@ func TestCreation_Service_CannotBeNull(t *testing.T) {
 }
 
 func TestCreation_Success(t *testing.T) {
-	_, err := setupHub(t)
+	_, err := setupHub(nil, t)
 	if err != nil {
 		t.Error("Creation failure")
 	}
 }
 
 func TestRegister_NewClient(t *testing.T) {
-	hub, _ := setupHub(t)
+	hub, _ := setupHub(nil, t)
 	clientId := "test"
 
 	err := hub.Register(clientId)
@@ -40,8 +41,8 @@ func TestRegister_NewClient(t *testing.T) {
 	}
 }
 
-func TestRegister_ClientALreadyRegistered_NoError(t *testing.T) {
-	hub, _ := setupHub(t)
+func TestRegister_ClientAlreadyRegistered_NoError(t *testing.T) {
+	hub, _ := setupHub(nil, t)
 	clientId := "test"
 
 	err := hub.Register(clientId)
@@ -55,9 +56,78 @@ func TestRegister_ClientALreadyRegistered_NoError(t *testing.T) {
 	}
 }
 
-func setupHub(t *testing.T) (*Hub, *fakeMessageHandler) {
-	t.Helper() // marks this as a helper so failures report the caller's line, not this one
-	handler := &fakeMessageHandler{}
+func TestUnregister_ClientNotRegisteredBefore_NoError(t *testing.T) {
+	hub, _ := setupHub(nil, t)
+	clientId := "test"
+	notRegisteredClient := "test2"
+
+	hub.Register(clientId)
+
+	err := hub.Unregister(notRegisteredClient)
+	if err != nil {
+		t.Errorf("Unregistered should retun error")
+	}
+}
+
+func TestUnregister_ClientUnregistered_Success(t *testing.T) {
+	hub, _ := setupHub(nil, t)
+	clientId := "test"
+
+	hub.Register(clientId)
+
+	err := hub.Unregister(clientId)
+	if err != nil {
+		t.Errorf("Unregistered should retun error")
+	}
+}
+
+func TestHandleIncoming_NoError(t *testing.T) {
+	hub, _ := setupHub(nil, t)
+	ctx := context.Background()
+
+	err := hub.HandleIncoming(chat.Message{}, ctx)
+	if err != nil {
+		t.Fatalf("Shouldn't return error if handler does not.")
+	}
+}
+
+func TestHandleIncoming_ReturnErrorOnHandlerError(t *testing.T) {
+	ctx := context.Background()
+	hub, _ := setupHub(&fakeMessageHandler{
+		err: fmt.Errorf("fake error"),
+	}, t)
+
+	err := hub.HandleIncoming(chat.Message{}, ctx)
+	if err == nil {
+		t.Errorf("Error should be returned from hub.")
+	}
+}
+
+func TestHandleIncoming_MessagePassed(t *testing.T) {
+	ctx := context.Background()
+	msgHandler := &fakeMessageHandler{
+		err: fmt.Errorf("fake error"),
+	}
+	hub, _ := setupHub(msgHandler, t)
+	msg := chat.Message{
+		RoomID: "some-room",
+	}
+	hub.HandleIncoming(msg, ctx)
+	calls := msgHandler.calls
+	if len(calls) == 0 {
+		t.Errorf("No messages were passed.")
+	}
+	if calls[0].RoomID != msg.RoomID {
+		t.Error("Message isn't passed")
+	}
+
+}
+
+func setupHub(handler *fakeMessageHandler, t *testing.T) (*Hub, *fakeMessageHandler) {
+	t.Helper()
+	if handler == nil {
+		handler = &fakeMessageHandler{}
+	}
 	hub, err := NewHub(handler)
 	if err != nil {
 		t.Fatalf("unexpected error creating hub: %v", err)

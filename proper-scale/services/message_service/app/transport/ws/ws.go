@@ -140,7 +140,7 @@ func (h *Ws) disconnect(client *clientConnection, ctx context.Context) {
 	}
 
 	if !response.Success {
-		slog.Error("Grpc disconnection failure", "error", err.Error())
+		slog.Error("Grpc disconnection failure")
 		return
 	}
 }
@@ -170,6 +170,6 @@ func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
 		return err
 	}
 
-	h.hub.SendMessage(message, ctx)
+	h.hub.HandleIncoming(message, ctx)
 	return nil
 }
