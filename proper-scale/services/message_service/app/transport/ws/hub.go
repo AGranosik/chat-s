@@ -2,17 +2,26 @@ package ws
 
 import (
 	"context"
+	"fmt"
 	"messages/chat"
 	"sync"
 )
 
+type MessageHandler interface {
+	HandleIncoming(ctx context.Context, m chat.Message) error
+}
+
 type Hub struct {
 	connections map[string]struct{}
 	mu          sync.RWMutex
-	s           *chat.ChatService
+	s           MessageHandler
 }
 
-func NewHub(service *chat.ChatService) (*Hub, error) {
+func NewHub(service MessageHandler) (*Hub, error) {
+	if service == nil {
+		return nil, fmt.Errorf("chat service cannot be null.")
+	}
+
 	return &Hub{
 		connections: make(map[string]struct{}),
 		s:           service,
@@ -35,6 +44,8 @@ func (h *Hub) Unregister(clientId string) error {
 	return nil
 }
 
+// it should send to connect client or just pass through to kafka
+// seprate method to handle incoming?
 func (h *Hub) SendMessage(message chat.Message, ctx context.Context) error {
-	return h.s.HandleIncoming(message, ctx)
+	return h.s.HandleIncoming(ctx, message)
 }

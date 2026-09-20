@@ -4,7 +4,7 @@ import (
 	"github.com/IBM/sarama"
 )
 
-//TODO: asyncproducer
+//TODO: asyncproducer & and comapre with sync results
 
 func NewProducer(brokers []string) (sarama.SyncProducer, error) {
 	cfg := sarama.NewConfig()
