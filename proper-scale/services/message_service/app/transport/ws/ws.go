@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"messages/chat"
 	"net/http"
+	"strings"
 	"time"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
@@ -28,11 +29,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type clientConnection struct {
-	ClientId string
-	Conn     *websocket.Conn
-}
-
 type Ws struct {
 	grpc        contractsv1.UserServiceClient
 	hub         *Hub
@@ -50,24 +46,32 @@ func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) 
 func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	clientId := r.URL.Query().Get("clientId")
-	if len(clientId) == 0 {
-		slog.Error("No client id.")
+	clientID := r.URL.Query().Get("client_id")
+	if clientID == "" {
+		http.Error(w, "client_id is required", http.StatusBadRequest)
 		return
 	}
-	clientConnection := &clientConnection{
-		ClientId: clientId,
+
+	roomParam := r.URL.Query().Get("room_ids")
+	if roomParam == "" {
+		http.Error(w, "room_ids is required", http.StatusBadRequest)
+		return
 	}
-	conn, err := h.configureConnection(w, r, ctx, clientConnection)
+	roomIDs := strings.Split(roomParam, ",")
+	conn, err := h.configureConnection(w, r, ctx, clientID)
 	if err != nil {
 		return
 	}
-	slog.Info("client connected", "clientId", clientId)
+	slog.Info("client connected", "clientId", clientID)
 	defer conn.Close()
-	defer h.disconnect(clientConnection, ctx)
+	defer h.disconnect(ctx, clientID, conn)
 	go runPing(conn, ctx)
 
-	h.hub.Register(clientId)
+	h.hub.Register(roomIDs, &ClientConnection{
+		ClientID: clientID,
+		Conn:     conn,
+		Send:     make(chan []byte),
+	})
 
 	for {
 		msgType, data, err := conn.ReadMessage()
@@ -95,7 +99,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, client *clientConnection) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -110,7 +114,7 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 
 	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
 		Dial:     h.serviceDial,
-		ClientId: client.ClientId,
+		ClientId: clientId,
 	})
 
 	if err != nil {
@@ -120,18 +124,17 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	}
 	if !response.Success {
 		conn.Close()
-		return nil, fmt.Errorf("connect rejected for client %s", client.ClientId)
+		return nil, fmt.Errorf("connect rejected for client %s", clientId)
 	}
 
-	client.Conn = conn
 	return conn, err
 }
 
-func (h *Ws) disconnect(client *clientConnection, ctx context.Context) {
-	defer client.Conn.Close()
-	defer h.hub.Unregister(client.ClientId)
+func (h *Ws) disconnect(ctx context.Context, clientId string, wsConn *websocket.Conn) {
+	defer h.hub.Unregister(clientId)
+	defer wsConn.Close()
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
-		ClientId: client.ClientId,
+		ClientId: clientId,
 	})
 
 	if err != nil {
