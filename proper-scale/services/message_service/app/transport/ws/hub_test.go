@@ -2,135 +2,453 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"messages/chat"
+	"reflect"
+	"sort"
+	"sync"
 	"testing"
 )
 
-type fakeMessageHandler struct {
-	calls []chat.Message
-	err   error
+type mockMessageHandler struct {
+	mu       sync.Mutex
+	messages []chat.Message
+	err      error
 }
 
-func (f *fakeMessageHandler) HandleIncoming(ctx context.Context, m chat.Message) error {
-	f.calls = append(f.calls, m)
-	return f.err
+func (m *mockMessageHandler) HandleIncoming(ctx context.Context, msg chat.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, msg)
+	return m.err
 }
 
-func TestCreation_Service_CannotBeNull(t *testing.T) {
-	_, err := NewHub(nil)
-	if err == nil {
-		t.Errorf("Creation should accept nil.")
+func (m *mockMessageHandler) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.messages)
+}
+
+func TestNewHub(t *testing.T) {
+	t.Run("nil service returns error", func(t *testing.T) {
+		hub, err := NewHub(nil)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if hub != nil {
+			t.Fatalf("expected nil hub, got %#v", hub)
+		}
+	})
+
+	t.Run("valid service returns initialized hub", func(t *testing.T) {
+		hub, err := NewHub(&mockMessageHandler{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if hub == nil {
+			t.Fatal("expected non-nil hub")
+		}
+		if hub.rooms == nil {
+			t.Fatal("expected rooms map to be initialized")
+		}
+		if len(hub.rooms) != 0 {
+			t.Fatalf("expected empty rooms map, got %d entries", len(hub.rooms))
+		}
+	})
+}
+
+func TestHubRegister(t *testing.T) {
+	t.Run("nil connection returns error", func(t *testing.T) {
+		hub, err := NewHub(&mockMessageHandler{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := hub.Register([]string{"room1"}, nil); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("registers client into a single room", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+
+		if err := hub.Register([]string{"room1"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		want := []string{"client1"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("registers client into multiple rooms", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+
+		if err := hub.Register([]string{"room1", "room2"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, roomID := range []string{"room1", "room2"} {
+			got := hub.Clients(roomID)
+			want := []string{"client1"}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("room %s: got %v, want %v", roomID, got, want)
+			}
+		}
+	})
+
+	t.Run("registers multiple clients into the same room", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn1 := &ClientConnection{ClientID: "client1"}
+		conn2 := &ClientConnection{ClientID: "client2"}
+
+		if err := hub.Register([]string{"room1"}, conn1); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := hub.Register([]string{"room1"}, conn2); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		sort.Strings(got)
+		want := []string{"client1", "client2"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("re-registering the same client does not duplicate it", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+
+		if err := hub.Register([]string{"room1"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := hub.Register([]string{"room1"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		want := []string{"client1"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("empty room list registers no rooms", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+
+		if err := hub.Register([]string{}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(hub.rooms) != 0 {
+			t.Fatalf("expected no rooms, got %d", len(hub.rooms))
+		}
+	})
+}
+
+func TestHubUnregister(t *testing.T) {
+	t.Run("removes client from all rooms", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+		if err := hub.Register([]string{"room1", "room2"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if err := hub.Unregister("client1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got := hub.Clients("room1"); got != nil {
+			t.Fatalf("room1: got %v, want nil", got)
+		}
+		if got := hub.Clients("room2"); got != nil {
+			t.Fatalf("room2: got %v, want nil", got)
+		}
+	})
+
+	t.Run("deletes a room once it becomes empty", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+		if err := hub.Register([]string{"room1"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if err := hub.Unregister("client1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		hub.mu.RLock()
+		_, ok := hub.rooms["room1"]
+		hub.mu.RUnlock()
+		if ok {
+			t.Fatal("expected room1 to be removed from the hub")
+		}
+	})
+
+	t.Run("keeps a room that still has other clients", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn1 := &ClientConnection{ClientID: "client1"}
+		conn2 := &ClientConnection{ClientID: "client2"}
+		if err := hub.Register([]string{"room1"}, conn1); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := hub.Register([]string{"room1"}, conn2); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if err := hub.Unregister("client1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		want := []string{"client2"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unregistering an unknown client is a no-op", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn := &ClientConnection{ClientID: "client1"}
+		if err := hub.Register([]string{"room1"}, conn); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if err := hub.Unregister("unknown"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		want := []string{"client1"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("unregistering from an empty hub is a no-op", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+
+		if err := hub.Unregister("client1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(hub.rooms) != 0 {
+			t.Fatalf("expected no rooms, got %d", len(hub.rooms))
+		}
+	})
+}
+
+func TestHubClients(t *testing.T) {
+	t.Run("unknown room returns nil", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		if got := hub.Clients("nonexistent"); got != nil {
+			t.Fatalf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("known room with no clients returns empty slice", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		hub.mu.Lock()
+		hub.rooms["room1"] = newRoom("room1")
+		hub.mu.Unlock()
+
+		got := hub.Clients("room1")
+		if len(got) != 0 {
+			t.Fatalf("got %v, want empty", got)
+		}
+	})
+
+	t.Run("returns every client id in the room", func(t *testing.T) {
+		hub, _ := NewHub(&mockMessageHandler{})
+		conn1 := &ClientConnection{ClientID: "client1"}
+		conn2 := &ClientConnection{ClientID: "client2"}
+		if err := hub.Register([]string{"room1"}, conn1); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := hub.Register([]string{"room1"}, conn2); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := hub.Clients("room1")
+		sort.Strings(got)
+		want := []string{"client1", "client2"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestHubHandleIncoming(t *testing.T) {
+	t.Run("delegates to the underlying handler", func(t *testing.T) {
+		handler := &mockMessageHandler{}
+		hub, _ := NewHub(handler)
+		msg := chat.Message{RoomID: "room1", Payload: json.RawMessage(`{"text":"hi"}`)}
+
+		if err := hub.HandleIncoming(msg, context.Background()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got := handler.callCount(); got != 1 {
+			t.Fatalf("got %d calls, want 1", got)
+		}
+		if handler.messages[0].RoomID != "room1" {
+			t.Fatalf("got room id %q, want %q", handler.messages[0].RoomID, "room1")
+		}
+		if !reflect.DeepEqual(handler.messages[0].Payload, msg.Payload) {
+			t.Fatalf("got payload %s, want %s", handler.messages[0].Payload, msg.Payload)
+		}
+	})
+
+	t.Run("propagates the handler error", func(t *testing.T) {
+		wantErr := errors.New("handler failure")
+		handler := &mockMessageHandler{err: wantErr}
+		hub, _ := NewHub(handler)
+
+		err := hub.HandleIncoming(chat.Message{}, context.Background())
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("got %v, want %v", err, wantErr)
+		}
+	})
+}
+
+func TestHubSendMessage(t *testing.T) {
+	hub, _ := NewHub(&mockMessageHandler{})
+	if err := hub.SendMessage(chat.Message{}, context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestCreation_Success(t *testing.T) {
-	_, err := setupHub(nil, t)
-	if err != nil {
-		t.Error("Creation failure")
+func TestRoomAddClient(t *testing.T) {
+	room := newRoom("room1")
+	conn := &ClientConnection{ClientID: "client1"}
+
+	room.addClient(conn)
+
+	got := room.clientIDs()
+	want := []string{"client1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestRegister_NewClient(t *testing.T) {
-	hub, _ := setupHub(nil, t)
-	clientId := "test"
+func TestRoomAddClientOverwritesExisting(t *testing.T) {
+	room := newRoom("room1")
+	first := &ClientConnection{ClientID: "client1"}
+	second := &ClientConnection{ClientID: "client1"}
 
-	err := hub.Register(clientId)
-	if err != nil {
-		t.Errorf("registration failure")
+	room.addClient(first)
+	room.addClient(second)
+
+	got := room.clientIDs()
+	want := []string{"client1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestRegister_ClientAlreadyRegistered_NoError(t *testing.T) {
-	hub, _ := setupHub(nil, t)
-	clientId := "test"
+func TestRoomRemoveClient(t *testing.T) {
+	room := newRoom("room1")
+	conn := &ClientConnection{ClientID: "client1"}
+	room.addClient(conn)
 
-	err := hub.Register(clientId)
-	if err != nil {
-		t.Errorf("registration failure")
-	}
+	room.removeClient("client1")
 
-	err = hub.Register(clientId)
-	if err != nil {
-		t.Errorf("registration failure")
+	if !room.isEmpty() {
+		t.Fatal("expected room to be empty")
 	}
 }
 
-func TestUnregister_ClientNotRegisteredBefore_NoError(t *testing.T) {
-	hub, _ := setupHub(nil, t)
-	clientId := "test"
-	notRegisteredClient := "test2"
+func TestRoomRemoveUnknownClient(t *testing.T) {
+	room := newRoom("room1")
+	conn := &ClientConnection{ClientID: "client1"}
+	room.addClient(conn)
 
-	hub.Register(clientId)
+	room.removeClient("unknown")
 
-	err := hub.Unregister(notRegisteredClient)
-	if err != nil {
-		t.Errorf("Unregistered should retun error")
+	got := room.clientIDs()
+	want := []string{"client1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestUnregister_ClientUnregistered_Success(t *testing.T) {
-	hub, _ := setupHub(nil, t)
-	clientId := "test"
+func TestRoomIsEmpty(t *testing.T) {
+	room := newRoom("room1")
+	if !room.isEmpty() {
+		t.Fatal("expected a new room to be empty")
+	}
 
-	hub.Register(clientId)
+	conn := &ClientConnection{ClientID: "client1"}
+	room.addClient(conn)
+	if room.isEmpty() {
+		t.Fatal("expected room to be non-empty after adding a client")
+	}
 
-	err := hub.Unregister(clientId)
-	if err != nil {
-		t.Errorf("Unregistered should retun error")
+	room.removeClient("client1")
+	if !room.isEmpty() {
+		t.Fatal("expected room to be empty after removing its only client")
 	}
 }
 
-func TestHandleIncoming_NoError(t *testing.T) {
-	hub, _ := setupHub(nil, t)
-	ctx := context.Background()
+func TestRoomClientIDs(t *testing.T) {
+	room := newRoom("room1")
 
-	err := hub.HandleIncoming(chat.Message{}, ctx)
-	if err != nil {
-		t.Fatalf("Shouldn't return error if handler does not.")
+	if got := room.clientIDs(); len(got) != 0 {
+		t.Fatalf("got %v, want empty", got)
+	}
+
+	conn1 := &ClientConnection{ClientID: "client1"}
+	conn2 := &ClientConnection{ClientID: "client2"}
+	room.addClient(conn1)
+	room.addClient(conn2)
+
+	got := room.clientIDs()
+	sort.Strings(got)
+	want := []string{"client1", "client2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
-func TestHandleIncoming_ReturnErrorOnHandlerError(t *testing.T) {
-	ctx := context.Background()
-	hub, _ := setupHub(&fakeMessageHandler{
-		err: fmt.Errorf("fake error"),
-	}, t)
+func TestHubConcurrentRegisterAndUnregister(t *testing.T) {
+	hub, _ := NewHub(&mockMessageHandler{})
+	const clientCount = 50
 
-	err := hub.HandleIncoming(chat.Message{}, ctx)
-	if err == nil {
-		t.Errorf("Error should be returned from hub.")
+	var wg sync.WaitGroup
+	for i := range clientCount {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			conn := &ClientConnection{ClientID: fmt.Sprintf("client%d", i)}
+			if err := hub.Register([]string{"room1"}, conn); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}(i)
 	}
-}
+	wg.Wait()
 
-func TestHandleIncoming_MessagePassed(t *testing.T) {
-	ctx := context.Background()
-	msgHandler := &fakeMessageHandler{
-		err: fmt.Errorf("fake error"),
-	}
-	hub, _ := setupHub(msgHandler, t)
-	msg := chat.Message{
-		RoomID: "some-room",
-	}
-	hub.HandleIncoming(msg, ctx)
-	calls := msgHandler.calls
-	if len(calls) == 0 {
-		t.Errorf("No messages were passed.")
-	}
-	if calls[0].RoomID != msg.RoomID {
-		t.Error("Message isn't passed")
+	if got := len(hub.Clients("room1")); got != clientCount {
+		t.Fatalf("got %d clients, want %d", got, clientCount)
 	}
 
-}
+	for i := range clientCount {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := hub.Unregister(fmt.Sprintf("client%d", i)); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
 
-func setupHub(handler *fakeMessageHandler, t *testing.T) (*Hub, *fakeMessageHandler) {
-	t.Helper()
-	if handler == nil {
-		handler = &fakeMessageHandler{}
+	if got := hub.Clients("room1"); got != nil {
+		t.Fatalf("got %v, want nil", got)
 	}
-	hub, err := NewHub(handler)
-	if err != nil {
-		t.Fatalf("unexpected error creating hub: %v", err)
-	}
-	return hub, handler
 }

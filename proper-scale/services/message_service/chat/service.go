@@ -20,7 +20,7 @@ func NewChatService(p MessagePublisher) *ChatService {
 	}
 }
 
-func (c *ChatService) HandleIncoming(m Message, ctx context.Context) error {
+func (c *ChatService) HandleIncoming(ctx context.Context, m Message) error {
 	c.publisher.Publish(ctx, m.RoomID, m.Payload)
 	return nil
 }
