@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TODO: dial
 const (
 	writeTimeout    = 10 * time.Second
 	pongWait        = 60 * time.Second
@@ -35,12 +36,19 @@ type Ws struct {
 	serviceDial string
 }
 
-func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) *Ws {
+func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) (*Ws, error) {
+	if hub == nil {
+		return nil, fmt.Errorf("hub cannot be null.")
+	}
+
+	if len(serviceDial) == 0 {
+		return nil, fmt.Errorf("service dial cannot be empty")
+	}
 	return &Ws{
 		grpc:        grpc,
 		hub:         hub,
 		serviceDial: serviceDial,
-	}
+	}, nil
 }
 
 func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +68,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	roomIDs := strings.Split(roomParam, ",")
 	conn, err := h.configureConnection(w, r, ctx, clientID)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	slog.Info("client connected", "clientId", clientID)

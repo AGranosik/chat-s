@@ -34,7 +34,11 @@ func main() {
 	if error != nil {
 		log.Fatalf("hub creation failure: %v", error)
 	}
-	ws := ws.NewWsHub(client, hub, "chat-server-1:9090")
+	ws, err := ws.NewWsHub(client, hub, "chat-server-1:9090")
+
+	if err != nil {
+		log.Fatalf("Ws connection not established")
+	}
 
 	transport.CreateHttpTransport(":8080", ws)
 }
