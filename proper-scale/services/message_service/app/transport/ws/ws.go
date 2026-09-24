@@ -71,16 +71,21 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	slog.Info("client connected", "clientId", clientID)
+	// slog.Info("client connected", "clientId", clientID)
 	defer conn.Close()
 	defer h.disconnect(ctx, clientID, conn)
 	go runPing(conn, ctx)
 
-	h.hub.Register(roomIDs, &ClientConnection{
+	err = h.hub.Register(roomIDs, &ClientConnection{
 		ClientID: clientID,
 		Conn:     conn,
 		Send:     make(chan []byte),
 	})
+
+	if err != nil {
+		http.Error(w, "Error on conn creation", http.StatusBadRequest)
+		return
+	}
 
 	for {
 		msgType, data, err := conn.ReadMessage()
