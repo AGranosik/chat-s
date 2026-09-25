@@ -71,7 +71,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// slog.Info("client connected", "clientId", clientID)
+	slog.Info("client connected", "clientId", clientID)
 	defer conn.Close()
 	defer h.disconnect(ctx, clientID, conn)
 	go runPing(conn, ctx)
@@ -187,6 +187,5 @@ func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
 		return err
 	}
 
-	h.hub.HandleIncoming(message, ctx)
-	return nil
+	return h.hub.HandleIncoming(message, ctx)
 }

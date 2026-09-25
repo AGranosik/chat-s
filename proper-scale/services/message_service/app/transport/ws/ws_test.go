@@ -1,12 +1,16 @@
 package ws
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"messages/chat"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
 	"github.com/gorilla/websocket"
@@ -16,14 +20,13 @@ import (
 type fakeMessageHandler struct {
 	m      chat.Message
 	called bool
+	err    error
 }
 
 func (h *fakeMessageHandler) HandleIncoming(ctx context.Context, m chat.Message) error {
 	h.called = true
-
 	h.m = m
-
-	return nil
+	return h.err
 }
 
 type fakeUserServiceClient struct {
@@ -145,14 +148,87 @@ func TestHub(t *testing.T) {
 		url := startServer(t, hub, fake)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
+		payload := "hehehe"
+		serializedPayload, _ := json.Marshal(payload)
+		msg := chat.Message{
+			RoomID:  "a",
+			Payload: serializedPayload,
+		}
+
+		serializedMsg, _ := json.Marshal(msg)
+		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second)
 		if !handler.called {
-			t.Errorf("no message")
+			t.Errorf("Message not received")
 		}
 
 		c.Close()
 	})
-	t.Run("connection open on message failure", func(t *testing.T) {})
-	t.Run("unregister called on connection closure", func(t *testing.T) {})
+
+	t.Run("message deserialized", func(t *testing.T) {
+		handler := &fakeMessageHandler{}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+
+		payload := "hehehe"
+		msg := msg("a", payload)
+
+		serializedMsg, _ := json.Marshal(msg)
+		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second)
+		if handler.m.RoomID != msg.RoomID || !bytes.Equal(msg.Payload, handler.m.Payload) {
+			t.Errorf("Wrong message passed")
+		}
+
+		c.Close()
+	})
+	t.Run("connection still open on message failure", func(t *testing.T) {
+		handler := &fakeMessageHandler{
+			err: fmt.Errorf("some error"),
+		}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+
+		payload := "hehehe"
+		msg := msg("a", payload)
+		serializedMsg, _ := json.Marshal(msg)
+		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second)
+
+		//still can write message
+		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+			t.Fatal(err)
+		}
+
+		c.Close()
+	})
+	t.Run("unregister called on connection closure", func(t *testing.T) {
+		handler := &fakeMessageHandler{
+			err: fmt.Errorf("some error"),
+		}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+
+		time.Sleep(1 * time.Second)
+		c.Close()
+		time.Sleep(1 * time.Second)
+
+		if len(hub.rooms) != 0 {
+			t.Errorf("Room should be deleted")
+		}
+	})
 }
 
 func TestGrpc(t *testing.T) {
@@ -170,6 +246,14 @@ func TestFallback(t *testing.T) {
 func newWsHub() *Ws {
 	hub, _ := NewWsHub(&fakeUserServiceClient{}, &Hub{}, "some-dial")
 	return hub
+}
+
+func msg(m string, r string) chat.Message {
+	serializedPayload, _ := json.Marshal(m)
+	return chat.Message{
+		RoomID:  "a",
+		Payload: serializedPayload,
+	}
 }
 
 // TODO: make naming better
