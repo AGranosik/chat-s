@@ -100,16 +100,18 @@ func TestWsQuery(t *testing.T) {
 		}
 	})
 
-	//TODO: make it pass
-	// t.Run("single rooom - success", func(t *testing.T) {
-	// 	req := httptest.NewRequest(http.MethodGet, "/ws?client_id=1&room_ids=123", nil)
-	// 	rec := httptest.NewRecorder()
-
-	// 	hub.ServeWS(rec, req)
-	// 	if rec.Code != http.StatusOK {
-	// 		t.Fatalf("got status %d, want %d", rec.Code, http.StatusOK)
-	// 	}
-	// })
+	t.Run("single rooom - success", func(t *testing.T) {
+		handler := &fakeMessageHandler{}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+		time.Sleep(1 * time.Second)
+		if len(hub.rooms) == 0 {
+			t.Errorf("Room should be created.")
+		}
+		c.Close()
+	})
 }
 
 func TestHub(t *testing.T) {
@@ -118,23 +120,11 @@ func TestHub(t *testing.T) {
 	t.Run("room created", func(t *testing.T) {
 		handler := &fakeMessageHandler{}
 		hub := newHub(handler)
-
-		// connected := make(chan *contractsv1.ConnectUserRequest, 1)
-		// disconnected := make(chan *contractsv1.DisconnectUserRequest, 1)
 		fake := &fakeUserServiceClient{}
-		// fake := &fakeUserServiceClient{
-		// 	connectFn: func(_ context.Context, in *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-		// 		connected <- in
-		// 		return &contractsv1.ConnectionResponse{Success: true}, nil
-		// 	},
-		// 	disconnectFn: func(_ context.Context, in *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-		// 		disconnected <- in
-		// 		return &contractsv1.ConnectionResponse{Success: true}, nil
-		// 	},
-		// }
 		url := startServer(t, hub, fake)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
+		time.Sleep(1 * time.Second)
 		if len(hub.rooms) == 0 {
 			t.Errorf("Room should be created.")
 		}
@@ -232,7 +222,53 @@ func TestHub(t *testing.T) {
 }
 
 func TestGrpc(t *testing.T) {
+	t.Run("connect called on connection upgrade", func(t *testing.T) {
+		called := false
 
+		handler := &fakeMessageHandler{
+			err: fmt.Errorf("some error"),
+		}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{
+			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+				called = true
+				return &contractsv1.ConnectionResponse{
+					Success: true,
+				}, nil
+			},
+		}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+		time.Sleep(1 * time.Second)
+
+		c.Close()
+
+		if !called {
+			t.Errorf("grpc connect don't called")
+		}
+
+	})
+
+	t.Run("connect closed on connect error", func(t *testing.T) {
+		handler := &fakeMessageHandler{
+			err: fmt.Errorf("some error"),
+		}
+		hub := newHub(handler)
+		fake := &fakeUserServiceClient{
+			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+				return nil, fmt.Errorf("mock error")
+			},
+		}
+		url := startServer(t, hub, fake)
+		c := dial(t, url+"?client_id=42&room_ids=a,b")
+		// c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, _, err := c.ReadMessage()
+		if err == nil {
+			t.Fatal("expected connection to be closed by the server")
+		}
+		t.Logf("got expected close error: %v", err)
+	})
+	t.Run("disconnect called on connection closure", func(t *testing.T) {})
 }
 
 func TestMessage(t *testing.T) {
