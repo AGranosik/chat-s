@@ -25,7 +25,6 @@ func NewPublisher(producer sarama.SyncProducer) MessagePublisher {
 }
 
 // TODO:
-// unit tests
 // load tests
 func (p *kafkaPublisher) Publish(ctx context.Context, roomId string, value []byte) error {
 	_, _, err := p.producer.SendMessage(&sarama.ProducerMessage{

@@ -1,8 +1,5 @@
 version: "3.9"
 
-# Shared definition for the three server instances. naive-scale runs N copies of
-# the same process behind nginx (the "just add more boxes" reflex) — hence the
-# anchor. Each instance gets a 200m budget instead of the single-instance 600m.
 x-server: &server
   build:
     context: .
@@ -14,16 +11,9 @@ x-server: &server
       condition: service_healthy
     redis:
       condition: service_healthy
-  environment:
-    DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
   expose:
     - "8080" # internal only: reachable by nginx on the compose network, never published to the host
   restart: on-failure
-  # Each proxied websocket is one fd on the server; the daemon default (often
-  # 1024) caps us near ~1000 conns. Raised high enough that fds never bind
-  # before the memory budget does. somaxconn deepens the accept queue so a
-  # connect burst doesn't overflow it and get RST (Go sizes the listen backlog
-  # from net.core.somaxconn).
   ulimits:
     nofile:
       soft: 262144
@@ -54,30 +44,21 @@ services:
     deploy:
       resources:
         limits:
-          # Fixed DB budget so Postgres doesn't eat host RAM and mask the
-          # servers' own memory wall.
           memory: 600m
   kafka:
     image: apache/kafka:4.2.0
     container_name: kafka
     hostname: kafka
     ports:
-      - "29092:29092" # host-machine connections (Go binaries you run directly, not in Docker)
-      # port 9092 is NOT published to the host on purpose — it's only for
-      # other containers on this compose network (kafka-ui, your chat-server, etc),
-      # which reach it via the service name "kafka", not localhost.
+      - "29092:29092"
  
     environment:
-      # --- KRaft (no Zookeeper needed from Kafka 4.x onward) ---
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk   # any fixed base64-ish string works; must not change once formatted
+      KAFKA_CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
  
-      # --- Listeners: two client listeners, one per audience ---
-      # PLAINTEXT      -> for other containers on this network (advertised as "kafka")
-      # PLAINTEXT_HOST -> for processes on your host machine (advertised as "localhost")
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
@@ -107,10 +88,10 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8080:8080"   # browse to http://localhost:8080
+      - "8080:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092   # internal Docker network address, not localhost
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     depends_on:
       kafka:
         condition: service_healthy  
@@ -125,7 +106,7 @@ services:
     environment:
       HTTP_ADDR: ":8080"
     expose:
-      - "8080" # internal only: reachable by nginx on the compose network, never published to the host
+      - "8080" 
     restart: on-failure
     ulimits:
       nofile:
@@ -183,6 +164,9 @@ services:
   server1:
     <<: *server
     container_name: chat-server-1
+    environment:
+      DIAL: chat-server-1
+      PresenceService: presence_service:9090
 
   # server2:
   #   <<: *server

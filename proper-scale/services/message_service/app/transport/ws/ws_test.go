@@ -51,7 +51,7 @@ func (f *fakeUserServiceClient) Disconnect(ctx context.Context, in *contractsv1.
 func TestNewWsHub(t *testing.T) {
 	t.Run("nil hub returns error", func(t *testing.T) {
 
-		_, err := NewWsHub(&fakeUserServiceClient{}, nil, "somme fake")
+		_, err := NewWs(&fakeUserServiceClient{}, nil, "somme fake")
 
 		if err == nil {
 			t.Errorf("Should return error on creation when hub is null.")
@@ -59,7 +59,7 @@ func TestNewWsHub(t *testing.T) {
 	})
 
 	t.Run("dial cannot be empty", func(t *testing.T) {
-		_, err := NewWsHub(&fakeUserServiceClient{}, &Hub{}, "")
+		_, err := NewWs(&fakeUserServiceClient{}, &Hub{}, "")
 
 		if err == nil {
 			t.Errorf("Should return error on creation.")
@@ -67,7 +67,7 @@ func TestNewWsHub(t *testing.T) {
 	})
 
 	t.Run("creation sucess", func(t *testing.T) {
-		_, err := NewWsHub(&fakeUserServiceClient{}, &Hub{}, "some-dial")
+		_, err := NewWs(&fakeUserServiceClient{}, &Hub{}, "some-dial")
 
 		if err != nil {
 			t.Errorf("Should create successfully")
@@ -328,19 +328,18 @@ func TestMessage(t *testing.T) {
 }
 
 func newWsHub() *Ws {
-	hub, _ := NewWsHub(&fakeUserServiceClient{}, &Hub{}, "some-dial")
+	hub, _ := NewWs(&fakeUserServiceClient{}, &Hub{}, "some-dial")
 	return hub
 }
 
 func msg(m string, r string) chat.Message {
 	serializedPayload, _ := json.Marshal(m)
 	return chat.Message{
-		RoomID:  "a",
+		RoomID:  r,
 		Payload: serializedPayload,
 	}
 }
 
-// TODO: make naming better
 func newHub(handler *fakeMessageHandler) *Hub {
 	if handler == nil {
 		handler = &fakeMessageHandler{}
@@ -354,7 +353,7 @@ func startServer(t *testing.T, hub *Hub, client contractsv1.UserServiceClient) s
 	if hub == nil {
 		hub = &Hub{}
 	}
-	w, err := NewWsHub(client, hub, "some-dial") // use your real Hub constructor
+	w, err := NewWs(client, hub, "some-dial") // use your real Hub constructor
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// TODO: dial
 const (
 	writeTimeout    = 10 * time.Second
 	pongWait        = 60 * time.Second
@@ -36,7 +35,7 @@ type Ws struct {
 	serviceDial string
 }
 
-func NewWsHub(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) (*Ws, error) {
+func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) (*Ws, error) {
 	if hub == nil {
 		return nil, fmt.Errorf("hub cannot be null.")
 	}

@@ -21,6 +21,7 @@ func main() {
 
 	q := u.Query()
 	q.Set("clientId", "abc123")
+	q.Set("room_ids", "1,2")
 	u.RawQuery = q.Encode()
 	log.Printf("connecting to %s", u.String())
 

@@ -5,6 +5,7 @@ import (
 	transport "messages/app/transport"
 	ws "messages/app/transport/ws"
 	"messages/chat"
+	env "messages/infra"
 	"messages/infra/kafka"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
@@ -14,7 +15,8 @@ import (
 )
 
 func main() {
-	conn, err := grpc.NewClient("presence_service:9090", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithConnectParams(grpc.ConnectParams{
+	cfg := env.GetCfg()
+	conn, err := grpc.NewClient(cfg.PresenceService, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithConnectParams(grpc.ConnectParams{
 		Backoff: backoff.DefaultConfig,
 	}))
 	if err != nil {
@@ -34,7 +36,7 @@ func main() {
 	if error != nil {
 		log.Fatalf("hub creation failure: %v", error)
 	}
-	ws, err := ws.NewWsHub(client, hub, "chat-server-1:9090")
+	ws, err := ws.NewWs(client, hub, cfg.Dial)
 
 	if err != nil {
 		log.Fatalf("Ws connection not established")
