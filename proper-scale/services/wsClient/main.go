@@ -20,7 +20,7 @@ func main() {
 	u := url.URL{Scheme: "ws", Host: "localhost:80", Path: "/ws"}
 
 	q := u.Query()
-	q.Set("clientId", "abc123")
+	q.Set("client_id", "abc123")
 	q.Set("room_ids", "1,2")
 	u.RawQuery = q.Encode()
 	log.Printf("connecting to %s", u.String())
@@ -60,6 +60,8 @@ func main() {
 		log.Println("write:", err)
 		return
 	}
+
+	log.Println("msg send.")
 
 	// Keep alive until interrupted
 	interrupt := make(chan os.Signal, 1)
