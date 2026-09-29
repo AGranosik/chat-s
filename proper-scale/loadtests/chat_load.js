@@ -80,6 +80,7 @@ export default function (data) {
     return;
   }
 
+  //find limit for open conn
   const idx    = exec.vu.idInTest - 1;                 // 0-based, unique across the test
   const roomId = data.rooms[Math.floor(idx / USERS)];  // USERS consecutive VUs share a room
   const userId = data.users[idx % USERS];
