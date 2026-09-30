@@ -6,15 +6,21 @@ import (
 	"github.com/IBM/sarama"
 )
 
-type handler struct {
+type Handler struct {
 	process func(*sarama.ConsumerMessage) error
 }
 
-func (h *handler) Setup(sarama.ConsumerGroupSession) error { return nil }
+func NewHandler(p func(*sarama.ConsumerMessage) error) *Handler {
+	return &Handler{
+		process: p,
+	}
+}
 
-func (h *handler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
+func (h *Handler) Setup(sarama.ConsumerGroupSession) error { return nil }
 
-func (h *handler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+func (h *Handler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
+
+func (h *Handler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for {
 		select {
 		case msg, ok := <-claim.Messages():

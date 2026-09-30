@@ -9,20 +9,20 @@ import (
 )
 
 type Config struct {
-	Brokers []string
-	GroupID string
-	Topics  []string
+	brokers []string
+	groupID string
+	topics  []string
 }
 
-func LoadConfig() Config {
+func loadConfig() Config {
 	return Config{
-		Brokers: splitEnv("KAFKA_BROKERS", "localhost:29092"),
-		GroupID: getEnv("KAFKA_GROUP_ID", "delivery"),
-		Topics:  splitEnv("KAFKA_TOPICS", "messages"),
+		brokers: splitEnv("KAFKA_BROKERS", "localhost:29092"),
+		groupID: getEnv("KAFKA_GROUP_ID", "delivery"),
+		topics:  splitEnv("KAFKA_TOPICS", "messages"),
 	}
 }
 
-func newSaramaConfig() *sarama.Config {
+func (c *Config) newSaramaConfig() *sarama.Config {
 	cfg := sarama.NewConfig()
 	cfg.Version = sarama.V3_6_0_0 // set to your broker version (or lower)
 

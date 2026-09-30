@@ -9,8 +9,21 @@ import (
 	"github.com/IBM/sarama"
 )
 
-func Run(ctx context.Context, cfg Config) error {
-	group, err := sarama.NewConsumerGroup(cfg.Brokers, cfg.GroupID, newSaramaConfig())
+type Consumer struct {
+	cfg     Config
+	handler *Handler
+}
+
+func NewConsumer(h *Handler) (*Consumer, error) {
+	config := loadConfig()
+	return &Consumer{
+		cfg:     config,
+		handler: h,
+	}, nil
+}
+
+func (c *Consumer) Run(ctx context.Context) error {
+	group, err := sarama.NewConsumerGroup(c.cfg.brokers, c.cfg.groupID, c.cfg.newSaramaConfig())
 	if err != nil {
 		return err
 	}
@@ -22,10 +35,8 @@ func Run(ctx context.Context, cfg Config) error {
 			log.Printf("consumer group error: %v", err)
 		}
 	}()
-
-	h := &handler{process: process}
 	for {
-		if err := group.Consume(ctx, cfg.Topics, h); err != nil {
+		if err := group.Consume(ctx, c.cfg.topics, c.handler); err != nil {
 			if errors.Is(err, sarama.ErrClosedConsumerGroup) || ctx.Err() != nil {
 				return nil
 			}
