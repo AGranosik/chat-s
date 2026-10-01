@@ -2,17 +2,18 @@ package kafka
 
 import (
 	"log"
+	"main/app"
 
 	"github.com/IBM/sarama"
 )
 
 type Handler struct {
-	process func(*sarama.ConsumerMessage) error
+	handler app.MessageHandler
 }
 
-func NewHandler(p func(*sarama.ConsumerMessage) error) *Handler {
+func NewHandler(h app.MessageHandler) *Handler {
 	return &Handler{
-		process: p,
+		handler: h,
 	}
 }
 
@@ -27,14 +28,12 @@ func (h *Handler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama
 			if !ok {
 				return nil
 			}
-			if err := h.process(msg); err != nil {
-
-				log.Printf("process failed (partition %d, offset %d): %v",
-					msg.Partition, msg.Offset, err)
+			m := app.Message{Key: msg.Key, Value: msg.Value, Timestamp: msg.Timestamp}
+			if err := h.handler.Handle(session.Context(), m); err != nil {
+				log.Fatalf("error during consuming: %v", err)
 				continue
 			}
 			session.MarkMessage(msg, "")
-
 		case <-session.Context().Done():
 			return nil
 		}
