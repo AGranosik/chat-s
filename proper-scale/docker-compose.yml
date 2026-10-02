@@ -83,7 +83,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
- 
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -119,30 +119,23 @@ services:
         limits:
           memory: 80m
         
-  # relay_service:
-  #   build:
-  #     context: ./services/relay_service
-  #     dockerfile: Dockerfile
-  #   container_name: chat-relay
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   environment:
-  #     DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
-  #     HTTP_ADDR: ":8080"
-  #   expose:
-  #     - "8080" # internal only: reachable by nginx on the compose network, never published to the host
-  #   restart: on-failure
-  #   ulimits:
-  #     nofile:
-  #       soft: 262144
-  #       hard: 262144
-  #   sysctls:
-  #     net.core.somaxconn: 65535
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 80m
+  delivery_service:
+    build:
+      context: .
+      dockerfile: /services/delivery_service/Dockerfile
+    container_name: delivery_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: 
+      KAFKA_BROKERS: "kafka:9092"    
+    expose:
+      - "8080"
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 80m
 
 
   redis:

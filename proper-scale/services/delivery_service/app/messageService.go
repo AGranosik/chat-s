@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log"
 	"time"
 )
 
@@ -22,5 +23,6 @@ func NewMessageHandler() (MessageHandler, error) {
 	return &MessageService{}, nil
 }
 func (s *MessageService) Handle(ctx context.Context, m Message) error {
+	log.Printf("msg received.")
 	return nil
 }
