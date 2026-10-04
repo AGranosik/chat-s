@@ -108,12 +108,6 @@ services:
     expose:
       - "8080" 
     restart: on-failure
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-    sysctls:
-      net.core.somaxconn: 65535
     deploy:
       resources:
         limits:
