@@ -21,6 +21,6 @@ func NewMessagePublisher(c Config) (app.MessagePublisher, error) {
 }
 
 func (p publisher) PublishMessage(ctx context.Context, m app.Message) error {
-	// some logic before propgation
+	//some serialization or deserialization
 	return p.c.PublishMessage(ctx, m)
 }

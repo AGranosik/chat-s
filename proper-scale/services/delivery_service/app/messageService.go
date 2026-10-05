@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"log"
 	"time"
 )
 
@@ -21,14 +20,17 @@ type MessageHandler interface {
 }
 
 type MessageService struct {
+	publisher MessagePublisher
 }
 
-func NewMessageHandler() (MessageHandler, error) {
-	return &MessageService{}, nil
+func NewMessageHandler(p MessagePublisher) (MessageHandler, error) {
+	return &MessageService{
+		publisher: p,
+	}, nil
 }
 
 // TODO: think where it should be placed
 func (s *MessageService) Handle(ctx context.Context, m Message) error {
-	log.Printf("msg received.")
-	return nil
+	//some logic before
+	return s.publisher.PublishMessage(ctx, m)
 }

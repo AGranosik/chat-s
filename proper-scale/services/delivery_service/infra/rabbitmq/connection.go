@@ -2,6 +2,8 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"main/app"
 	"sync"
 	"time"
@@ -40,6 +42,7 @@ func NewConnection(c Config) (*Connection, error) {
 	return &Connection{
 		conn:    conn,
 		channel: ch,
+		cfg:     c,
 	}, nil
 }
 
@@ -50,14 +53,14 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 	if err := c.ensureChannel(); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	//todo: make sure room id is in message
-	err := c.channel.PublishWithContext(ctx,
+	conf, err := c.channel.PublishWithDeferredConfirmWithContext(ctx,
 		c.cfg.exchange,
 		c.cfg.routingKey,
 		c.cfg.mandatory,
-		c.cfg.imediate,
+		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
@@ -68,9 +71,16 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 	if err != nil {
 		return err
 	}
+
+	acked, err := conf.WaitContext(ctx)
+	if err != nil { // unknown state, don't reuse
+		return fmt.Errorf("rabbitmq confirm: %w", err)
+	}
+	if !acked {
+		return errors.New("rabbitmq: message nacked by broker")
+	}
 	return nil
 }
-
 func (c *Connection) ensureChannel() error {
 	if c.conn == nil || c.conn.IsClosed() {
 		conn, err := amqp.Dial(c.cfg.dial)
@@ -87,7 +97,29 @@ func (c *Connection) ensureChannel() error {
 		if err := ch.Confirm(false); err != nil {
 			return err
 		}
+		if err := ch.ExchangeDeclare(c.cfg.exchange, c.cfg.routingKey, true, false, false, false, nil); err != nil {
+			_ = ch.Close()
+			return err
+		}
 		c.channel = ch
+	}
+	return nil
+}
+
+func (c *Connection) dropChannel() {
+	if c.channel != nil {
+		_ = c.channel.Close()
+		c.channel = nil
+	}
+}
+
+// TODO: close conn in main
+func (c *Connection) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.dropChannel()
+	if c.conn != nil {
+		return c.conn.Close()
 	}
 	return nil
 }
