@@ -1,25 +1,15 @@
 package kafka
 
 import (
-	"os"
-	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
 )
 
 type Config struct {
-	brokers []string
-	groupID string
-	topics  []string
-}
-
-func loadConfig() Config {
-	return Config{
-		brokers: splitEnv("KAFKA_BROKERS", "localhost:29092"),
-		groupID: getEnv("KAFKA_GROUP_ID", "delivery"),
-		topics:  splitEnv("KAFKA_TOPICS", "messages"),
-	}
+	Brokers []string
+	GroupID string
+	Topics  []string
 }
 
 func (c *Config) newSaramaConfig() *sarama.Config {
@@ -46,15 +36,4 @@ func (c *Config) newSaramaConfig() *sarama.Config {
 	cfg.Consumer.Return.Errors = true
 
 	return cfg
-}
-
-func getEnv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func splitEnv(key, def string) []string {
-	return strings.Split(getEnv(key, def), ",")
 }

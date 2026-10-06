@@ -19,12 +19,12 @@ type Connection struct {
 }
 
 type Config struct {
-	dial, exchange, routingKey, kind string
-	mandatory, imediate              bool
+	Dial, Exchange, Kind string
+	Mandatory            bool
 }
 
 func NewConnection(c Config) (*Connection, error) {
-	conn, err := amqp.Dial(c.dial)
+	conn, err := amqp.Dial(c.Dial)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewConnection(c Config) (*Connection, error) {
 		return nil, err
 	}
 
-	if err := ch.ExchangeDeclare(c.exchange, c.kind, true, false, false, false, nil); err != nil {
+	if err := ch.ExchangeDeclare(c.Exchange, c.Kind, true, false, false, false, nil); err != nil {
 		return nil, err
 	}
 
@@ -56,16 +56,19 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	//todo: make sure room id is in message
+	roomId := string(m.Key)
+	fmt.Println("Msg for %s - received")
 	conf, err := c.channel.PublishWithDeferredConfirmWithContext(ctx,
-		c.cfg.exchange,
-		c.cfg.routingKey,
-		c.cfg.mandatory,
+		c.cfg.Exchange,
+		roomId,
+		c.cfg.Mandatory,
 		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
 			Timestamp:    time.Now(),
 			Body:         m.Value,
+			//TODO: add get dial at presence service
 		})
 
 	if err != nil {
@@ -83,7 +86,7 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 }
 func (c *Connection) ensureChannel() error {
 	if c.conn == nil || c.conn.IsClosed() {
-		conn, err := amqp.Dial(c.cfg.dial)
+		conn, err := amqp.Dial(c.cfg.Dial)
 		if err != nil {
 			return err
 		}
@@ -97,7 +100,7 @@ func (c *Connection) ensureChannel() error {
 		if err := ch.Confirm(false); err != nil {
 			return err
 		}
-		if err := ch.ExchangeDeclare(c.cfg.exchange, c.cfg.routingKey, true, false, false, false, nil); err != nil {
+		if err := ch.ExchangeDeclare(c.cfg.Exchange, c.cfg.Kind, true, false, false, false, nil); err != nil {
 			_ = ch.Close()
 			return err
 		}

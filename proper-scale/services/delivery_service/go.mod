@@ -4,8 +4,10 @@ go 1.26.3
 
 require github.com/IBM/sarama v1.61.1
 
+require github.com/davecgh/go-spew v1.1.1 // indirect
+
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/AGranosik/chat/contracts/common v0.0.0
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
@@ -21,3 +23,5 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )
+
+replace github.com/AGranosik/chat/contracts/common => ../../contracts/common

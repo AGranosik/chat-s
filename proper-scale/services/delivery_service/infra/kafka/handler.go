@@ -1,17 +1,22 @@
 package kafka
 
 import (
+	"context"
 	"log"
 	"main/app"
 
 	"github.com/IBM/sarama"
 )
 
-type Handler struct {
-	handler app.MessageHandler
+type MessageHandler interface {
+	Handle(ctx context.Context, m app.Message) error
 }
 
-func NewHandler(h app.MessageHandler) *Handler {
+type Handler struct {
+	handler MessageHandler
+}
+
+func NewHandler(h MessageHandler) *Handler {
 	return &Handler{
 		handler: h,
 	}

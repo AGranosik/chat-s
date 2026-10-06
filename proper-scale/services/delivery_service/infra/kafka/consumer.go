@@ -14,29 +14,27 @@ type Consumer struct {
 	handler *Handler
 }
 
-func NewConsumer(h *Handler) (*Consumer, error) {
-	config := loadConfig()
+func NewConsumer(h *Handler, c Config) (*Consumer, error) {
 	return &Consumer{
-		cfg:     config,
+		cfg:     c,
 		handler: h,
 	}, nil
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
-	group, err := sarama.NewConsumerGroup(c.cfg.brokers, c.cfg.groupID, c.cfg.newSaramaConfig())
+	group, err := sarama.NewConsumerGroup(c.cfg.Brokers, c.cfg.GroupID, c.cfg.newSaramaConfig())
 	if err != nil {
 		return err
 	}
 	defer group.Close()
 
-	// Ends when the group is closed.
 	go func() {
 		for err := range group.Errors() {
 			log.Printf("consumer group error: %v", err)
 		}
 	}()
 	for {
-		if err := group.Consume(ctx, c.cfg.topics, c.handler); err != nil {
+		if err := group.Consume(ctx, c.cfg.Topics, c.handler); err != nil {
 			if errors.Is(err, sarama.ErrClosedConsumerGroup) || ctx.Err() != nil {
 				return nil
 			}

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"main/app"
+	config "main/cmd"
 	"main/infra/kafka"
+	"main/infra/rabbitmq"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,15 +29,28 @@ func main() {
 }
 
 func createConsumer() (*kafka.Consumer, error) {
-	service, err := app.NewMessageHandler()
+	rabbitcfg := config.LoadRabbitMqConfig()
+	publisher, err := rabbitmq.NewMessagePublisher(rabbitcfg)
+	if err != nil {
+		return nil, err
+	}
+
+	service, err := app.NewMessageHandler(publisher)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot create message service: %v", err)
 	}
 	handler := kafka.NewHandler(service)
-	consumer, err := kafka.NewConsumer(handler)
+	consumer, err := kafka.NewConsumer(handler, config.LoadKafkaMessageConfig())
 	if err != nil {
 		return nil, fmt.Errorf("Cannot create consumer: %v", err)
 	}
 
 	return consumer, nil
+}
+
+func getEnv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
