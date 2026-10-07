@@ -23,8 +23,8 @@ const (
 
 type ConnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Dial          string                 `protobuf:"bytes,2,opt,name=dial,proto3" json:"dial,omitempty"`
+	RoomsId       []string               `protobuf:"bytes,1,rep,name=rooms_id,json=roomsId,proto3" json:"rooms_id,omitempty"`
+	InstanceName  string                 `protobuf:"bytes,2,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
 	ClientId      string                 `protobuf:"bytes,3,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -60,16 +60,16 @@ func (*ConnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ConnectUserRequest) GetRoomId() string {
+func (x *ConnectUserRequest) GetRoomsId() []string {
 	if x != nil {
-		return x.RoomId
+		return x.RoomsId
 	}
-	return ""
+	return nil
 }
 
-func (x *ConnectUserRequest) GetDial() string {
+func (x *ConnectUserRequest) GetInstanceName() string {
 	if x != nil {
-		return x.Dial
+		return x.InstanceName
 	}
 	return ""
 }
@@ -83,8 +83,7 @@ func (x *ConnectUserRequest) GetClientId() string {
 
 type DisconnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	ClientId      string                 `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,13 +116,6 @@ func (x *DisconnectUserRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DisconnectUserRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectUserRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *DisconnectUserRequest) GetRoomId() string {
-	if x != nil {
-		return x.RoomId
-	}
-	return ""
 }
 
 func (x *DisconnectUserRequest) GetClientId() string {
@@ -177,24 +169,117 @@ func (x *ConnectionResponse) GetSuccess() bool {
 	return false
 }
 
+type IsUserConnectedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IsUserConnectedRequest) Reset() {
+	*x = IsUserConnectedRequest{}
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IsUserConnectedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IsUserConnectedRequest) ProtoMessage() {}
+
+func (x *IsUserConnectedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IsUserConnectedRequest.ProtoReflect.Descriptor instead.
+func (*IsUserConnectedRequest) Descriptor() ([]byte, []int) {
+	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *IsUserConnectedRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+type UserConnectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InstanceName  *string                `protobuf:"bytes,1,opt,name=instance_name,json=instanceName,proto3,oneof" json:"instance_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserConnectionResponse) Reset() {
+	*x = UserConnectionResponse{}
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserConnectionResponse) ProtoMessage() {}
+
+func (x *UserConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserConnectionResponse.ProtoReflect.Descriptor instead.
+func (*UserConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UserConnectionResponse) GetInstanceName() string {
+	if x != nil && x.InstanceName != nil {
+		return *x.InstanceName
+	}
+	return ""
+}
+
 var File_contracts_protos_presence_service_proto protoreflect.FileDescriptor
 
 const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\n" +
-	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"^\n" +
-	"\x12ConnectUserRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x12\n" +
-	"\x04dial\x18\x02 \x01(\tR\x04dial\x12\x1b\n" +
-	"\tclient_id\x18\x03 \x01(\tR\bclientId\"M\n" +
-	"\x15DisconnectUserRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x1b\n" +
-	"\tclient_id\x18\x02 \x01(\tR\bclientId\".\n" +
+	"'contracts/protos/presence_service.proto\x12\fcotnracts.v1\"q\n" +
+	"\x12ConnectUserRequest\x12\x19\n" +
+	"\brooms_id\x18\x01 \x03(\tR\aroomsId\x12#\n" +
+	"\rinstance_name\x18\x02 \x01(\tR\finstanceName\x12\x1b\n" +
+	"\tclient_id\x18\x03 \x01(\tR\bclientId\"4\n" +
+	"\x15DisconnectUserRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\".\n" +
 	"\x12ConnectionResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xb1\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"5\n" +
+	"\x16IsUserConnectedRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\"T\n" +
+	"\x16UserConnectionResponse\x12(\n" +
+	"\rinstance_name\x18\x01 \x01(\tH\x00R\finstanceName\x88\x01\x01B\x10\n" +
+	"\x0e_instance_name2\x8c\x02\n" +
 	"\vUserService\x12M\n" +
 	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12S\n" +
 	"\n" +
-	"Disconnect\x12#.cotnracts.v1.DisconnectUserRequest\x1a .cotnracts.v1.ConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
+	"Disconnect\x12#.cotnracts.v1.DisconnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12Y\n" +
+	"\vIsConnected\x12$.cotnracts.v1.IsUserConnectedRequest\x1a$.cotnracts.v1.UserConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
 
 var (
 	file_contracts_protos_presence_service_proto_rawDescOnce sync.Once
@@ -208,19 +293,23 @@ func file_contracts_protos_presence_service_proto_rawDescGZIP() []byte {
 	return file_contracts_protos_presence_service_proto_rawDescData
 }
 
-var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_contracts_protos_presence_service_proto_goTypes = []any{
-	(*ConnectUserRequest)(nil),    // 0: cotnracts.v1.ConnectUserRequest
-	(*DisconnectUserRequest)(nil), // 1: cotnracts.v1.DisconnectUserRequest
-	(*ConnectionResponse)(nil),    // 2: cotnracts.v1.ConnectionResponse
+	(*ConnectUserRequest)(nil),     // 0: cotnracts.v1.ConnectUserRequest
+	(*DisconnectUserRequest)(nil),  // 1: cotnracts.v1.DisconnectUserRequest
+	(*ConnectionResponse)(nil),     // 2: cotnracts.v1.ConnectionResponse
+	(*IsUserConnectedRequest)(nil), // 3: cotnracts.v1.IsUserConnectedRequest
+	(*UserConnectionResponse)(nil), // 4: cotnracts.v1.UserConnectionResponse
 }
 var file_contracts_protos_presence_service_proto_depIdxs = []int32{
 	0, // 0: cotnracts.v1.UserService.Connect:input_type -> cotnracts.v1.ConnectUserRequest
 	1, // 1: cotnracts.v1.UserService.Disconnect:input_type -> cotnracts.v1.DisconnectUserRequest
-	2, // 2: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.ConnectionResponse
-	2, // 3: cotnracts.v1.UserService.Disconnect:output_type -> cotnracts.v1.ConnectionResponse
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	3, // 2: cotnracts.v1.UserService.IsConnected:input_type -> cotnracts.v1.IsUserConnectedRequest
+	2, // 3: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.ConnectionResponse
+	2, // 4: cotnracts.v1.UserService.Disconnect:output_type -> cotnracts.v1.ConnectionResponse
+	4, // 5: cotnracts.v1.UserService.IsConnected:output_type -> cotnracts.v1.UserConnectionResponse
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -231,13 +320,14 @@ func file_contracts_protos_presence_service_proto_init() {
 	if File_contracts_protos_presence_service_proto != nil {
 		return
 	}
+	file_contracts_protos_presence_service_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contracts_protos_presence_service_proto_rawDesc), len(file_contracts_protos_presence_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

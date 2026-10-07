@@ -7,20 +7,28 @@ option go_package = "github.com/AGranosik/chat/contracts;contractsv1";
 service UserService {
   rpc Connect(ConnectUserRequest) returns (ConnectionResponse);
   rpc Disconnect(DisconnectUserRequest) returns (ConnectionResponse);
+  rpc IsConnected(IsUserConnectedRequest) returns (UserConnectionResponse);
 }
 
 
 message ConnectUserRequest {
-  string room_id = 1;
-  string dial = 2;
+  repeated string rooms_id = 1;
+  string instance_name = 2;
   string client_id =3;
 }
 
 message DisconnectUserRequest {
-  string room_id = 1;
-  string client_id =2;
+  string client_id = 1;
 }
 
 message ConnectionResponse {
   bool success = 1;
+}
+
+message IsUserConnectedRequest {
+  string client_id = 1;
+}
+
+message UserConnectionResponse {
+  optional string instance_name = 1;
 }

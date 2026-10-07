@@ -30,8 +30,9 @@ func (h *fakeMessageHandler) HandleIncoming(ctx context.Context, m chat.Message)
 }
 
 type fakeUserServiceClient struct {
-	connectFn    func(context.Context, *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error)
-	disconnectFn func(context.Context, *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error)
+	connectFn     func(context.Context, *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error)
+	disconnectFn  func(context.Context, *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error)
+	isConnectedFn func(context.Context, *contractsv1.IsUserConnectedRequest) (*contractsv1.UserConnectionResponse, error)
 }
 
 func (f *fakeUserServiceClient) Connect(ctx context.Context, in *contractsv1.ConnectUserRequest, _ ...grpc.CallOption) (*contractsv1.ConnectionResponse, error) {
@@ -46,6 +47,13 @@ func (f *fakeUserServiceClient) Disconnect(ctx context.Context, in *contractsv1.
 		return f.disconnectFn(ctx, in)
 	}
 	return &contractsv1.ConnectionResponse{Success: true}, nil
+}
+
+func (f *fakeUserServiceClient) IsConnected(ctx context.Context, in *contractsv1.IsUserConnectedRequest, _ ...grpc.CallOption) (*contractsv1.UserConnectionResponse, error) {
+	if f.isConnectedFn != nil {
+		return f.isConnectedFn(ctx, in)
+	}
+	return &contractsv1.UserConnectionResponse{}, nil
 }
 
 func TestNewWsHub(t *testing.T) {

@@ -65,7 +65,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	roomIDs := strings.Split(roomParam, ",")
-	conn, err := h.configureConnection(w, r, ctx, clientID)
+	conn, err := h.configureConnection(w, r, ctx, clientID, roomIDs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -112,7 +112,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string) (*websocket.Conn, error) {
+func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx context.Context, clientId string, roomIds []string) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade failed", "err", err)
@@ -126,8 +126,9 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	})
 
 	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
-		Dial:     h.serviceDial,
-		ClientId: clientId,
+		InstanceName: h.serviceDial,
+		RoomsId:      roomIds,
+		ClientId:     clientId,
 	})
 
 	if err != nil {
