@@ -30,7 +30,7 @@ const (
 type UserServiceClient interface {
 	Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 	Disconnect(ctx context.Context, in *DisconnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
-	IsConnected(ctx context.Context, in *IsUserConnectedRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error)
+	IsConnected(ctx context.Context, in *ClientsConnectionDestRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error)
 }
 
 type userServiceClient struct {
@@ -61,7 +61,7 @@ func (c *userServiceClient) Disconnect(ctx context.Context, in *DisconnectUserRe
 	return out, nil
 }
 
-func (c *userServiceClient) IsConnected(ctx context.Context, in *IsUserConnectedRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error) {
+func (c *userServiceClient) IsConnected(ctx context.Context, in *ClientsConnectionDestRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserConnectionResponse)
 	err := c.cc.Invoke(ctx, UserService_IsConnected_FullMethodName, in, out, cOpts...)
@@ -77,7 +77,7 @@ func (c *userServiceClient) IsConnected(ctx context.Context, in *IsUserConnected
 type UserServiceServer interface {
 	Connect(context.Context, *ConnectUserRequest) (*ConnectionResponse, error)
 	Disconnect(context.Context, *DisconnectUserRequest) (*ConnectionResponse, error)
-	IsConnected(context.Context, *IsUserConnectedRequest) (*UserConnectionResponse, error)
+	IsConnected(context.Context, *ClientsConnectionDestRequest) (*UserConnectionResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -94,7 +94,7 @@ func (UnimplementedUserServiceServer) Connect(context.Context, *ConnectUserReque
 func (UnimplementedUserServiceServer) Disconnect(context.Context, *DisconnectUserRequest) (*ConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Disconnect not implemented")
 }
-func (UnimplementedUserServiceServer) IsConnected(context.Context, *IsUserConnectedRequest) (*UserConnectionResponse, error) {
+func (UnimplementedUserServiceServer) IsConnected(context.Context, *ClientsConnectionDestRequest) (*UserConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method IsConnected not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
@@ -155,7 +155,7 @@ func _UserService_Disconnect_Handler(srv interface{}, ctx context.Context, dec f
 }
 
 func _UserService_IsConnected_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(IsUserConnectedRequest)
+	in := new(ClientsConnectionDestRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func _UserService_IsConnected_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: UserService_IsConnected_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserServiceServer).IsConnected(ctx, req.(*IsUserConnectedRequest))
+		return srv.(UserServiceServer).IsConnected(ctx, req.(*ClientsConnectionDestRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

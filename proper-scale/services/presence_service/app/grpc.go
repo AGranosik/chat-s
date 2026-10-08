@@ -19,7 +19,7 @@ func (s *GrpcConfig) Connect(ctx context.Context, req *contractsv1.ConnectUserRe
 
 	clientId := req.ClientId
 	dial := req.GetDial()
-
+	//TODO: per roomId
 	if err := s.Rdb.Set(ctx, clientId, dial, time.Second*10).Err(); err != nil {
 		log.Printf("failed to set client %s: %v", clientId, err)
 		return &contractsv1.ConnectionResponse{

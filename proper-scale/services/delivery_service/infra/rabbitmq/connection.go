@@ -60,7 +60,7 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 	fmt.Println("Msg for %s - received")
 	conf, err := c.channel.PublishWithDeferredConfirmWithContext(ctx,
 		c.cfg.Exchange,
-		roomId,
+		roomId, //routing key
 		c.cfg.Mandatory,
 		false,
 		amqp.Publishing{

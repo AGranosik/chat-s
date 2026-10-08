@@ -6,17 +6,35 @@ import (
 	"log"
 	"main/app"
 	config "main/cmd"
+	env "main/infra"
 	"main/infra/kafka"
 	"main/infra/rabbitmq"
 	"os"
 	"os/signal"
 	"syscall"
+
+	contractsv1 "github.com/AGranosik/chat/contracts"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
+	cfg := env.GetGrpcConfig()
+	conn, err := grpc.NewClient(cfg.PresenceService, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithConnectParams(grpc.ConnectParams{
+		Backoff: backoff.DefaultConfig,
+	}))
+
+	if err != nil {
+		log.Fatalf("grpc connection failed: %v", err)
+	}
+
+	defer conn.Close()
+	client := contractsv1.NewUserServiceClient(conn)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	consumer, err := createConsumer()
+	consumer, err := createConsumer(client)
 
 	if err != nil {
 		log.Panicf("Cannot create consumer, err: %v", err)
@@ -28,14 +46,14 @@ func main() {
 	log.Println("shut down cleanly")
 }
 
-func createConsumer() (*kafka.Consumer, error) {
+func createConsumer(c contractsv1.UserServiceClient) (*kafka.Consumer, error) {
 	rabbitcfg := config.LoadRabbitMqConfig()
 	publisher, err := rabbitmq.NewMessagePublisher(rabbitcfg)
 	if err != nil {
 		return nil, err
 	}
 
-	service, err := app.NewMessageHandler(publisher)
+	service, err := app.NewMessageHandler(publisher, c)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot create message service: %v", err)
 	}
