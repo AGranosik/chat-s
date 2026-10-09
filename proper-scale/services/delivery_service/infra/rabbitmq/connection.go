@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"main/app"
 	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+type instanceMessage struct {
+	Key, Value   []byte
+	Headers      map[string]string
+	Timestamp    time.Time
+	InstanceName string
+}
 
 type Connection struct {
 	conn    *amqp.Connection
@@ -46,7 +52,7 @@ func NewConnection(c Config) (*Connection, error) {
 	}, nil
 }
 
-func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
+func (c *Connection) PublishMessage(ctx context.Context, m instanceMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -66,9 +72,8 @@ func (c *Connection) PublishMessage(ctx context.Context, m app.Message) error {
 		amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
-			Timestamp:    time.Now(),
+			Timestamp:    m.Timestamp,
 			Body:         m.Value,
-			//TODO: add get dial at presence service
 		})
 
 	if err != nil {

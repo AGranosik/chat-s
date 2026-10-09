@@ -20,7 +20,20 @@ func NewMessagePublisher(c Config) (app.MessagePublisher, error) {
 	}, nil
 }
 
-func (p publisher) PublishMessage(ctx context.Context, m app.Message) error {
-	//some serialization or deserialization
-	return p.c.PublishMessage(ctx, m)
+// TODO: OUTBOX??
+func (p publisher) PublishMessage(ctx context.Context, m app.Message, instancesNames []string) error {
+	for _, v := range instancesNames {
+		err := p.c.PublishMessage(ctx, instanceMessage{
+			Key:          m.Key,
+			Value:        m.Value,
+			Headers:      m.Headers,
+			Timestamp:    m.Timestamp,
+			InstanceName: v,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

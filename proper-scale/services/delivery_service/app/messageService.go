@@ -12,11 +12,10 @@ type Message struct {
 	Key, Value []byte
 	Headers    map[string]string
 	Timestamp  time.Time
-	//todo: missing msg service
 }
 
 type MessagePublisher interface {
-	PublishMessage(ctx context.Context, m Message) error
+	PublishMessage(ctx context.Context, m Message, instancesNames []string) error
 }
 
 type MessageService struct {
@@ -39,10 +38,10 @@ func (s *MessageService) Handle(ctx context.Context, m Message) error {
 	if err != nil {
 		return fmt.Errorf("grpc connection request error: %v", err)
 	}
-
-	if len(res.GetInstanceNames()) == 0 {
+	instanceNames := res.GetInstanceNames()
+	if len(instanceNames) == 0 {
 		return nil
 	}
 
-	return s.publisher.PublishMessage(ctx, m)
+	return s.publisher.PublishMessage(ctx, m, instanceNames)
 }
