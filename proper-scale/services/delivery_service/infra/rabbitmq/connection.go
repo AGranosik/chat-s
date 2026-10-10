@@ -62,11 +62,10 @@ func (c *Connection) PublishMessage(ctx context.Context, m instanceMessage) erro
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	//todo: make sure room id is in message
-	roomId := string(m.Key)
 	fmt.Println("Msg for %s - received")
 	conf, err := c.channel.PublishWithDeferredConfirmWithContext(ctx,
 		c.cfg.Exchange,
-		roomId, //routing key
+		m.InstanceName, //routing key
 		c.cfg.Mandatory,
 		false,
 		amqp.Publishing{
