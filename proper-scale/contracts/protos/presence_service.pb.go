@@ -84,6 +84,7 @@ func (x *ConnectUserRequest) GetClientId() string {
 type DisconnectUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	InstanceName  string                 `protobuf:"bytes,2,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -121,6 +122,13 @@ func (*DisconnectUserRequest) Descriptor() ([]byte, []int) {
 func (x *DisconnectUserRequest) GetClientId() string {
 	if x != nil {
 		return x.ClientId
+	}
+	return ""
+}
+
+func (x *DisconnectUserRequest) GetInstanceName() string {
+	if x != nil {
+		return x.InstanceName
 	}
 	return ""
 }
@@ -265,9 +273,10 @@ const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\x12ConnectUserRequest\x12\x19\n" +
 	"\brooms_id\x18\x01 \x03(\tR\aroomsId\x12#\n" +
 	"\rinstance_name\x18\x02 \x01(\tR\finstanceName\x12\x1b\n" +
-	"\tclient_id\x18\x03 \x01(\tR\bclientId\"4\n" +
+	"\tclient_id\x18\x03 \x01(\tR\bclientId\"Y\n" +
 	"\x15DisconnectUserRequest\x12\x1b\n" +
-	"\tclient_id\x18\x01 \x01(\tR\bclientId\".\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12#\n" +
+	"\rinstance_name\x18\x02 \x01(\tR\finstanceName\".\n" +
 	"\x12ConnectionResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\"7\n" +
 	"\x1cClientsConnectionDestRequest\x12\x17\n" +

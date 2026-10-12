@@ -19,6 +19,7 @@ message ConnectUserRequest {
 
 message DisconnectUserRequest {
   string client_id = 1;
+  string instance_name = 2;
 }
 
 message ConnectionResponse {
