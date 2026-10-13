@@ -265,6 +265,58 @@ func (x *UserConnectionResponse) GetInstanceNames() []string {
 	return nil
 }
 
+type PingConnectionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	InstanceName  string                 `protobuf:"bytes,2,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PingConnectionRequest) Reset() {
+	*x = PingConnectionRequest{}
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PingConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PingConnectionRequest) ProtoMessage() {}
+
+func (x *PingConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_contracts_protos_presence_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PingConnectionRequest.ProtoReflect.Descriptor instead.
+func (*PingConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *PingConnectionRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *PingConnectionRequest) GetInstanceName() string {
+	if x != nil {
+		return x.InstanceName
+	}
+	return ""
+}
+
 var File_contracts_protos_presence_service_proto protoreflect.FileDescriptor
 
 const file_contracts_protos_presence_service_proto_rawDesc = "" +
@@ -282,12 +334,16 @@ const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\x1cClientsConnectionDestRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"?\n" +
 	"\x16UserConnectionResponse\x12%\n" +
-	"\x0einstance_names\x18\x01 \x03(\tR\rinstanceNames2\x92\x02\n" +
+	"\x0einstance_names\x18\x01 \x03(\tR\rinstanceNames\"Y\n" +
+	"\x15PingConnectionRequest\x12\x1b\n" +
+	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12#\n" +
+	"\rinstance_name\x18\x02 \x01(\tR\finstanceName2\xe1\x02\n" +
 	"\vUserService\x12M\n" +
 	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12S\n" +
 	"\n" +
 	"Disconnect\x12#.cotnracts.v1.DisconnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12_\n" +
-	"\vIsConnected\x12*.cotnracts.v1.ClientsConnectionDestRequest\x1a$.cotnracts.v1.UserConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
+	"\vIsConnected\x12*.cotnracts.v1.ClientsConnectionDestRequest\x1a$.cotnracts.v1.UserConnectionResponse\x12M\n" +
+	"\x04Ping\x12#.cotnracts.v1.PingConnectionRequest\x1a .cotnracts.v1.ConnectionResponseB1Z/github.com/AGranosik/chat/contracts;contractsv1b\x06proto3"
 
 var (
 	file_contracts_protos_presence_service_proto_rawDescOnce sync.Once
@@ -301,23 +357,26 @@ func file_contracts_protos_presence_service_proto_rawDescGZIP() []byte {
 	return file_contracts_protos_presence_service_proto_rawDescData
 }
 
-var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_contracts_protos_presence_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_contracts_protos_presence_service_proto_goTypes = []any{
 	(*ConnectUserRequest)(nil),           // 0: cotnracts.v1.ConnectUserRequest
 	(*DisconnectUserRequest)(nil),        // 1: cotnracts.v1.DisconnectUserRequest
 	(*ConnectionResponse)(nil),           // 2: cotnracts.v1.ConnectionResponse
 	(*ClientsConnectionDestRequest)(nil), // 3: cotnracts.v1.ClientsConnectionDestRequest
 	(*UserConnectionResponse)(nil),       // 4: cotnracts.v1.UserConnectionResponse
+	(*PingConnectionRequest)(nil),        // 5: cotnracts.v1.PingConnectionRequest
 }
 var file_contracts_protos_presence_service_proto_depIdxs = []int32{
 	0, // 0: cotnracts.v1.UserService.Connect:input_type -> cotnracts.v1.ConnectUserRequest
 	1, // 1: cotnracts.v1.UserService.Disconnect:input_type -> cotnracts.v1.DisconnectUserRequest
 	3, // 2: cotnracts.v1.UserService.IsConnected:input_type -> cotnracts.v1.ClientsConnectionDestRequest
-	2, // 3: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.ConnectionResponse
-	2, // 4: cotnracts.v1.UserService.Disconnect:output_type -> cotnracts.v1.ConnectionResponse
-	4, // 5: cotnracts.v1.UserService.IsConnected:output_type -> cotnracts.v1.UserConnectionResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	5, // 3: cotnracts.v1.UserService.Ping:input_type -> cotnracts.v1.PingConnectionRequest
+	2, // 4: cotnracts.v1.UserService.Connect:output_type -> cotnracts.v1.ConnectionResponse
+	2, // 5: cotnracts.v1.UserService.Disconnect:output_type -> cotnracts.v1.ConnectionResponse
+	4, // 6: cotnracts.v1.UserService.IsConnected:output_type -> cotnracts.v1.UserConnectionResponse
+	2, // 7: cotnracts.v1.UserService.Ping:output_type -> cotnracts.v1.ConnectionResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -334,7 +393,7 @@ func file_contracts_protos_presence_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contracts_protos_presence_service_proto_rawDesc), len(file_contracts_protos_presence_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

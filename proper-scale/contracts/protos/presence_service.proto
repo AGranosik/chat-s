@@ -8,6 +8,7 @@ service UserService {
   rpc Connect(ConnectUserRequest) returns (ConnectionResponse);
   rpc Disconnect(DisconnectUserRequest) returns (ConnectionResponse);
   rpc IsConnected(ClientsConnectionDestRequest) returns (UserConnectionResponse);
+  rpc Ping(PingConnectionRequest) returns (ConnectionResponse);
 }
 
 
@@ -32,4 +33,9 @@ message ClientsConnectionDestRequest {
 
 message UserConnectionResponse {
   repeated string instance_names = 1;
+}
+
+message PingConnectionRequest {
+  string client_id = 1;
+  string instance_name = 2;
 }

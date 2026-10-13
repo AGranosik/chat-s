@@ -32,7 +32,8 @@ func (h *fakeMessageHandler) HandleIncoming(ctx context.Context, m chat.Message)
 type fakeUserServiceClient struct {
 	connectFn     func(context.Context, *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error)
 	disconnectFn  func(context.Context, *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error)
-	isConnectedFn func(context.Context, *contractsv1.IsUserConnectedRequest) (*contractsv1.UserConnectionResponse, error)
+	isConnectedFn func(context.Context, *contractsv1.ClientsConnectionDestRequest) (*contractsv1.UserConnectionResponse, error)
+	pingFn        func(context.Context, *contractsv1.PingConnectionRequest) (*contractsv1.ConnectionResponse, error)
 }
 
 func (f *fakeUserServiceClient) Connect(ctx context.Context, in *contractsv1.ConnectUserRequest, _ ...grpc.CallOption) (*contractsv1.ConnectionResponse, error) {
@@ -49,11 +50,18 @@ func (f *fakeUserServiceClient) Disconnect(ctx context.Context, in *contractsv1.
 	return &contractsv1.ConnectionResponse{Success: true}, nil
 }
 
-func (f *fakeUserServiceClient) IsConnected(ctx context.Context, in *contractsv1.IsUserConnectedRequest, _ ...grpc.CallOption) (*contractsv1.UserConnectionResponse, error) {
+func (f *fakeUserServiceClient) IsConnected(ctx context.Context, in *contractsv1.ClientsConnectionDestRequest, _ ...grpc.CallOption) (*contractsv1.UserConnectionResponse, error) {
 	if f.isConnectedFn != nil {
 		return f.isConnectedFn(ctx, in)
 	}
 	return &contractsv1.UserConnectionResponse{}, nil
+}
+
+func (f *fakeUserServiceClient) Ping(ctx context.Context, in *contractsv1.PingConnectionRequest, _ ...grpc.CallOption) (*contractsv1.ConnectionResponse, error) {
+	if f.pingFn != nil {
+		return f.pingFn(ctx, in)
+	}
+	return &contractsv1.ConnectionResponse{}, nil
 }
 
 func TestNewWsHub(t *testing.T) {

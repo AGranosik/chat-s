@@ -22,6 +22,7 @@ const (
 	UserService_Connect_FullMethodName     = "/cotnracts.v1.UserService/Connect"
 	UserService_Disconnect_FullMethodName  = "/cotnracts.v1.UserService/Disconnect"
 	UserService_IsConnected_FullMethodName = "/cotnracts.v1.UserService/IsConnected"
+	UserService_Ping_FullMethodName        = "/cotnracts.v1.UserService/Ping"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -31,6 +32,7 @@ type UserServiceClient interface {
 	Connect(ctx context.Context, in *ConnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 	Disconnect(ctx context.Context, in *DisconnectUserRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 	IsConnected(ctx context.Context, in *ClientsConnectionDestRequest, opts ...grpc.CallOption) (*UserConnectionResponse, error)
+	Ping(ctx context.Context, in *PingConnectionRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 }
 
 type userServiceClient struct {
@@ -71,6 +73,16 @@ func (c *userServiceClient) IsConnected(ctx context.Context, in *ClientsConnecti
 	return out, nil
 }
 
+func (c *userServiceClient) Ping(ctx context.Context, in *PingConnectionRequest, opts ...grpc.CallOption) (*ConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConnectionResponse)
+	err := c.cc.Invoke(ctx, UserService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type UserServiceServer interface {
 	Connect(context.Context, *ConnectUserRequest) (*ConnectionResponse, error)
 	Disconnect(context.Context, *DisconnectUserRequest) (*ConnectionResponse, error)
 	IsConnected(context.Context, *ClientsConnectionDestRequest) (*UserConnectionResponse, error)
+	Ping(context.Context, *PingConnectionRequest) (*ConnectionResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedUserServiceServer) Disconnect(context.Context, *DisconnectUse
 }
 func (UnimplementedUserServiceServer) IsConnected(context.Context, *ClientsConnectionDestRequest) (*UserConnectionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method IsConnected not implemented")
+}
+func (UnimplementedUserServiceServer) Ping(context.Context, *PingConnectionRequest) (*ConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +188,24 @@ func _UserService_IsConnected_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).Ping(ctx, req.(*PingConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsConnected",
 			Handler:    _UserService_IsConnected_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _UserService_Ping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
