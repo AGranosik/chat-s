@@ -24,15 +24,8 @@ func (s *GrpcConfig) Connect(ctx context.Context, req *contractsv1.ConnectUserRe
 	log.Printf("received message -> client_id=%s dial=%v", clientId, roomsId)
 
 	pipe := s.Rdb.TxPipeline()
-	for _, r := range roomsId {
-		key := roomKey(r)
-		pipe.HSet(ctx, key, clientId, instanceName)
-		pipe.HExpire(ctx, key, connTTL, clientId)
-	}
-
-	clientKey := clientKey(clientId, instanceName)
-	pipe.SAdd(ctx, clientKey, roomsId)
-	pipe.Expire(ctx, clientKey, connTTL)
+	saveRooms(ctx, clientId, instanceName, roomsId, pipe)
+	saveClient(ctx, clientId, instanceName, roomsId, pipe)
 	_, err := pipe.Exec(ctx)
 
 	if err != nil {
@@ -47,7 +40,9 @@ func (s *GrpcConfig) Connect(ctx context.Context, req *contractsv1.ConnectUserRe
 }
 
 // TODO: cleanup
-// TODO: code refactor, split into smaller
+// TODO: RUN
+// TODO : e2e tests
+// TODO: load tests
 func (s *GrpcConfig) Disconnect(ctx context.Context, req *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
 	clientId := req.GetClientId()
 	instanceName := req.GetInstanceName()
@@ -86,6 +81,7 @@ func (s *GrpcConfig) Disconnect(ctx context.Context, req *contractsv1.Disconnect
 	}, nil
 }
 
+// TODO: ping per isntanec not clientId
 func (s *GrpcConfig) Ping(ctx context.Context, req *contractsv1.PingConnectionRequest) (*contractsv1.ConnectionResponse, error) {
 	clientId := req.GetClientId()
 	instanceName := req.GetInstanceName()
@@ -105,11 +101,7 @@ func (s *GrpcConfig) Ping(ctx context.Context, req *contractsv1.PingConnectionRe
 	}
 
 	pipe := s.Rdb.TxPipeline()
-	for _, r := range roomsId {
-		key := roomKey(r)
-		pipe.HSet(ctx, key, clientId, instanceName)
-		pipe.HExpire(ctx, key, connTTL, clientId)
-	}
+	saveRooms(ctx, clientId, instanceName, roomsId, pipe)
 
 	pipe.Expire(ctx, ck, connTTL)
 	_, err = pipe.Exec(ctx)
@@ -126,10 +118,29 @@ func (s *GrpcConfig) Ping(ctx context.Context, req *contractsv1.PingConnectionRe
 
 }
 
+func saveRooms(ctx context.Context, clientID, instanceName string, roomsId []string, pipe redis.Pipeliner) {
+	for _, r := range roomsId {
+		key := roomKey(r)
+		pipe.HSet(ctx, key, clientField(clientID, instanceName))
+		pipe.HExpire(ctx, key, connTTL, clientID)
+	}
+}
+
+func saveClient(ctx context.Context, clientID, instanceName string, roomsId []string, pipe redis.Pipeliner) {
+	clientKey := clientKey(clientID, instanceName)
+	pipe.Del(ctx, clientKey)
+	pipe.SAdd(ctx, clientKey, roomsId)
+	pipe.Expire(ctx, clientKey, connTTL)
+}
+
 func clientKey(clientID, instanceName string) string {
 	return "client:" + clientID + "-" + instanceName
 }
 
 func roomKey(roomID string) string {
 	return "room:" + roomID
+}
+
+func clientField(clientID, instanceName string) string {
+	return clientID + "|" + instanceName
 }
