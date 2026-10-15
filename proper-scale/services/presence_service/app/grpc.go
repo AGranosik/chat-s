@@ -109,11 +109,35 @@ func (s *ConnectionService) Ping(ctx context.Context, req *contractsv1.PingConne
 
 }
 
+func (s *ConnectionService) IsConnected(ctx context.Context, req *contractsv1.ClientsConnectionDestRequest) (*contractsv1.UserConnectionResponse, error) {
+	roomID := req.GetRoomId()
+	rk := roomKey(roomID)
+
+	fields, err := s.Rdb.HGetAll(ctx, rk).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	instanceNames := make([]string, 0)
+	for _, inst := range fields {
+		if _, ok := seen[inst]; ok {
+			continue
+		}
+		seen[inst] = struct{}{}
+		instanceNames = append(instanceNames, inst)
+	}
+
+	return &contractsv1.UserConnectionResponse{
+		InstanceNames: instanceNames,
+	}, nil
+}
+
 func saveRooms(ctx context.Context, clientID, instanceName string, roomsId []string, pipe redis.Pipeliner) {
 	for _, r := range roomsId {
 		key := roomKey(r)
 		ck := clientKey(clientID, instanceName)
-		pipe.HSet(ctx, key, ck, 1)
+		pipe.HSet(ctx, key, ck, instanceName)
 		pipe.HExpire(ctx, key, connTTL, ck)
 	}
 }
