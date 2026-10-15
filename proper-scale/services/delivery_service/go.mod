@@ -5,6 +5,8 @@ go 1.26.3
 require github.com/IBM/sarama v1.61.1
 
 require (
+	github.com/AGranosik/chat/contracts/protos v0.0.0
+	github.com/AGranosik/chat/contracts/common v0.0.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
@@ -12,8 +14,6 @@ require (
 )
 
 require (
-	github.com/AGranosik/chat/contracts v0.0.0
-	github.com/AGranosik/chat/contracts/common v0.0.0
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
@@ -33,4 +33,4 @@ require (
 
 replace github.com/AGranosik/chat/contracts/common => ../../contracts/common
 
-replace github.com/AGranosik/chat/contracts => ../../contracts/protos
+replace github.com/AGranosik/chat/contracts/protos => ../../contracts/protos

@@ -73,7 +73,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info("client connected", "clientId", clientID)
 	defer conn.Close()
 	defer h.disconnect(ctx, clientID, conn)
-	go h.runPing(conn, ctx, clientID)
+	go h.runPing(conn, ctx)
 
 	err = h.hub.Register(roomIDs, &ClientConnection{
 		ClientID: clientID,
@@ -162,7 +162,7 @@ func (h *Ws) disconnect(ctx context.Context, clientId string, wsConn *websocket.
 	}
 }
 
-func (h *Ws) runPing(conn *websocket.Conn, ctx context.Context, clientID string) {
+func (h *Ws) runPing(conn *websocket.Conn, ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	for {
@@ -175,7 +175,7 @@ func (h *Ws) runPing(conn *websocket.Conn, ctx context.Context, clientID string)
 
 			pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			res, err := h.grpc.Ping(pctx, &contractsv1.PingConnectionRequest{
-				ClientId:     clientID,
+				ClientsId:    h.hub.allClients(),
 				InstanceName: h.serviceDial,
 			})
 

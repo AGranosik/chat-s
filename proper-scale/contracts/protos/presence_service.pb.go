@@ -267,8 +267,8 @@ func (x *UserConnectionResponse) GetInstanceNames() []string {
 
 type PingConnectionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClientId      string                 `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	InstanceName  string                 `protobuf:"bytes,2,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
+	InstanceName  string                 `protobuf:"bytes,1,opt,name=instance_name,json=instanceName,proto3" json:"instance_name,omitempty"`
+	ClientsId     []string               `protobuf:"bytes,2,rep,name=clients_id,json=clientsId,proto3" json:"clients_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -303,18 +303,18 @@ func (*PingConnectionRequest) Descriptor() ([]byte, []int) {
 	return file_contracts_protos_presence_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *PingConnectionRequest) GetClientId() string {
-	if x != nil {
-		return x.ClientId
-	}
-	return ""
-}
-
 func (x *PingConnectionRequest) GetInstanceName() string {
 	if x != nil {
 		return x.InstanceName
 	}
 	return ""
+}
+
+func (x *PingConnectionRequest) GetClientsId() []string {
+	if x != nil {
+		return x.ClientsId
+	}
+	return nil
 }
 
 var File_contracts_protos_presence_service_proto protoreflect.FileDescriptor
@@ -334,10 +334,11 @@ const file_contracts_protos_presence_service_proto_rawDesc = "" +
 	"\x1cClientsConnectionDestRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"?\n" +
 	"\x16UserConnectionResponse\x12%\n" +
-	"\x0einstance_names\x18\x01 \x03(\tR\rinstanceNames\"Y\n" +
-	"\x15PingConnectionRequest\x12\x1b\n" +
-	"\tclient_id\x18\x01 \x01(\tR\bclientId\x12#\n" +
-	"\rinstance_name\x18\x02 \x01(\tR\finstanceName2\xe1\x02\n" +
+	"\x0einstance_names\x18\x01 \x03(\tR\rinstanceNames\"[\n" +
+	"\x15PingConnectionRequest\x12#\n" +
+	"\rinstance_name\x18\x01 \x01(\tR\finstanceName\x12\x1d\n" +
+	"\n" +
+	"clients_id\x18\x02 \x03(\tR\tclientsId2\xe1\x02\n" +
 	"\vUserService\x12M\n" +
 	"\aConnect\x12 .cotnracts.v1.ConnectUserRequest\x1a .cotnracts.v1.ConnectionResponse\x12S\n" +
 	"\n" +

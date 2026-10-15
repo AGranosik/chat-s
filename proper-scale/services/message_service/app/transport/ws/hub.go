@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"messages/chat"
+	"slices"
 	"sync"
 )
 
@@ -118,6 +119,17 @@ func (h *Hub) Clients(roomID string) []string {
 		return nil
 	}
 	return room.clientIDs()
+}
+
+func (h *Hub) allClients() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	res := []string{}
+	for _, r := range h.rooms {
+		res = slices.Concat(res, r.clientIDs())
+	}
+
+	return res
 }
 
 func (h *Hub) HandleIncoming(message chat.Message, ctx context.Context) error {

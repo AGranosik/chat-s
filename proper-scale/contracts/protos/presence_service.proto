@@ -36,6 +36,6 @@ message UserConnectionResponse {
 }
 
 message PingConnectionRequest {
-  string client_id = 1;
-  string instance_name = 2;
+  string instance_name = 1;
+  repeated string clients_id = 2;
 }

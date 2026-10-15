@@ -4,6 +4,8 @@ FROM golang:1.26-alpine AS builder
 WORKDIR /app
 
 COPY services/delivery_service ./services/delivery_service
+COPY contracts/protos ./contracts/protos
+COPY contracts/common ./contracts/common
 WORKDIR /app/services/delivery_service
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o delivery_service ./cmd/server

@@ -137,10 +137,11 @@ services:
       dockerfile: /services/delivery_service/Dockerfile
     container_name: delivery_service
     depends_on:
-      postgres:
+      rabbitmq:
         condition: service_healthy
     environment: 
       KAFKA_BROKERS: "kafka:9092"    
+      RABBITMQ_URI: "amqp://guest:guest@rabbitmq:5672/"
     expose:
       - "8080"
     restart: on-failure

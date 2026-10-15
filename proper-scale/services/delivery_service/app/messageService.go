@@ -3,9 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
-	contractsv1 "github.com/AGranosik/chat/contracts"
+	contractsv1 "github.com/AGranosik/chat/contracts/protos"
 )
 
 type Message struct {
@@ -42,6 +43,8 @@ func (s *MessageService) Handle(ctx context.Context, m Message) error {
 	if len(instanceNames) == 0 {
 		return nil
 	}
+
+	log.Printf("Message published.")
 
 	return s.publisher.PublishMessage(ctx, m, instanceNames)
 }

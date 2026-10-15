@@ -22,7 +22,7 @@ func main() {
 		DB:   0,            // use default DB
 	})
 
-	g := &app.GrpcConfig{
+	g := &app.ConnectionService{
 		Rdb: rdb,
 	}
 	grpcServer := grpc.NewServer()
