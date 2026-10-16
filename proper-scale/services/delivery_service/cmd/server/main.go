@@ -2,73 +2,62 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"main/app"
-	config "main/cmd"
 	env "main/infra"
 	"main/infra/kafka"
-	"main/infra/rabbitmq"
+	"main/infra/redispubsub"
 	"os"
 	"os/signal"
 	"syscall"
 
 	contractsv1 "github.com/AGranosik/chat/contracts/protos"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	cfg := env.GetGrpcConfig()
-	conn, err := grpc.NewClient(cfg.PresenceService, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithConnectParams(grpc.ConnectParams{
-		Backoff: backoff.DefaultConfig,
-	}))
-
-	if err != nil {
-		log.Fatalf("grpc connection failed: %v", err)
-	}
-
-	defer conn.Close()
-	client := contractsv1.NewUserServiceClient(conn)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	consumer, err := createConsumer(client)
-
-	if err != nil {
-		log.Panicf("Cannot create consumer, err: %v", err)
-	}
-
-	if err := consumer.Run(ctx); err != nil {
-		log.Fatalf("consumer stopped: %v", err)
+	// No defers here, so log.Fatalf is safe: run() has already cleaned up.
+	if err := run(); err != nil {
+		log.Fatalf("fatal: %v", err)
 	}
 	log.Println("shut down cleanly")
 }
 
-func createConsumer(c contractsv1.UserServiceClient) (*kafka.Consumer, error) {
-	rabbitcfg := config.LoadRabbitMqConfig()
-	publisher, err := rabbitmq.NewMessagePublisher(rabbitcfg)
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	presenceConn, err := dialGRPC(env.GetGrpcConfig().PresenceService)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("presence grpc client: %w", err)
+	}
+	defer presenceConn.Close()
+
+	pub, err := redispubsub.NewMessagePublisher(ctx, env.GetRedisConfig())
+	if err != nil {
+		return fmt.Errorf("redis publisher: %w", err)
+	}
+	defer pub.Close()
+
+	service, err := app.NewMessageHandler(pub, contractsv1.NewUserServiceClient(presenceConn))
+	if err != nil {
+		return fmt.Errorf("message handler: %w", err)
 	}
 
-	service, err := app.NewMessageHandler(publisher, c)
+	consumer, err := kafka.NewConsumer(kafka.NewHandler(service), env.GetKafkaMessageConfig())
 	if err != nil {
-		return nil, fmt.Errorf("Cannot create message service: %v", err)
-	}
-	handler := kafka.NewHandler(service)
-	consumer, err := kafka.NewConsumer(handler, config.LoadKafkaMessageConfig())
-	if err != nil {
-		return nil, fmt.Errorf("Cannot create consumer: %v", err)
+		return fmt.Errorf("kafka consumer: %w", err)
 	}
 
-	return consumer, nil
+	if err := consumer.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return fmt.Errorf("kafka consumer stopped: %w", err)
+	}
+	return nil
 }
 
-func getEnv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
+func dialGRPC(target string) (*grpc.ClientConn, error) {
+	return grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
