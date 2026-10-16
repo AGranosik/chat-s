@@ -24,8 +24,10 @@ func NewPublisher(producer sarama.SyncProducer) MessagePublisher {
 	}
 }
 
-// TODO:
-// load tests
+// TODO: MOVE TO Redis Pub/Sub
+// TODO: sequence number somehow
+// TODO: get messsage offset id or number or sth that will help order messages for client
+// TODO: load balancer per active messages connection
 func (p *kafkaPublisher) Publish(ctx context.Context, roomId string, value []byte) error {
 	_, _, err := p.producer.SendMessage(&sarama.ProducerMessage{
 		Topic: topic,

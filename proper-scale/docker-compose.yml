@@ -45,24 +45,6 @@ services:
       resources:
         limits:
           memory: 600m
-  rabbitmq:
-    image: rabbitmq:4-management
-    container_name: rabbitmq
-    hostname: rabbitmq
-    ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
   kafka:
     image: apache/kafka:4.2.0
     container_name: kafka
@@ -137,11 +119,11 @@ services:
       dockerfile: /services/delivery_service/Dockerfile
     container_name: delivery_service
     depends_on:
-      rabbitmq:
+      redis:
         condition: service_healthy
     environment: 
-      KAFKA_BROKERS: "kafka:9092"    
-      RABBITMQ_URI: "amqp://guest:guest@rabbitmq:5672/"
+      KAFKA_BROKERS: "kafka:9092"  
+      REDIS_ADDR: redis:6379  
     expose:
       - "8080"
     restart: on-failure
@@ -149,7 +131,6 @@ services:
       resources:
         limits:
           memory: 80m
-
 
   redis:
     image: redis:7-alpine

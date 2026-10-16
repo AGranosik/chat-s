@@ -12,15 +12,14 @@ import (
 )
 
 type Config struct {
-	Addr           string // e.g. "redis:6379" (compose service name)
+	Addr           string
 	Username       string
 	Password       string
 	DB             int
-	ChannelPrefix  string        // e.g. "instance:"
-	PublishTimeout time.Duration // 0 = 5s
+	ChannelPrefix  string
+	PublishTimeout time.Duration
 }
 
-// ChannelName is exported so the subscriber side uses exactly the same name.
 func ChannelName(prefix, instanceName string) string {
 	return prefix + instanceName
 }
@@ -64,7 +63,6 @@ func (p *Publisher) PublishMessage(ctx context.Context, m app.Message, instances
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
-	// One network round trip for all instances.
 	pipe := p.rdb.Pipeline()
 	for _, name := range instancesNames {
 		pipe.Publish(ctx, ChannelName(p.prefix, name), m.Value)
@@ -74,9 +72,6 @@ func (p *Publisher) PublishMessage(ctx context.Context, m app.Message, instances
 	if err != nil {
 		return fmt.Errorf("redis publish: %w", err)
 	}
-
-	// PUBLISH returns the number of subscribers that received the message.
-	// 0 means nobody was listening, so the message was dropped (at-most-once).
 	for i, cmd := range cmds {
 		if ic, ok := cmd.(*redis.IntCmd); ok && ic.Val() == 0 {
 			log.Printf("redis: no subscribers on %q, message dropped", ChannelName(p.prefix, instancesNames[i]))
