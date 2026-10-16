@@ -2,8 +2,7 @@ package rabbitmq
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -61,9 +60,11 @@ func (c *Connection) PublishMessage(ctx context.Context, m instanceMessage) erro
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	//todo: make sure room id is in message
-	fmt.Println("Msg for %s - received")
-	conf, err := c.channel.PublishWithDeferredConfirmWithContext(ctx,
+
+	log.Printf("Msg for received")
+	log.Printf("Room id: %v", string(m.Key))
+	//if outbox just fire-forget
+	err := c.channel.PublishWithContext(ctx,
 		c.cfg.Exchange,
 		m.InstanceName, //routing key
 		c.cfg.Mandatory,
@@ -77,14 +78,6 @@ func (c *Connection) PublishMessage(ctx context.Context, m instanceMessage) erro
 
 	if err != nil {
 		return err
-	}
-
-	acked, err := conf.WaitContext(ctx)
-	if err != nil { // unknown state, don't reuse
-		return fmt.Errorf("rabbitmq confirm: %w", err)
-	}
-	if !acked {
-		return errors.New("rabbitmq: message nacked by broker")
 	}
 	return nil
 }
