@@ -29,13 +29,18 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type IngestHandler interface {
+	HandleIncoming(ctx context.Context, m chat.Message) error
+}
+
 type Ws struct {
 	grpc        contractsv1.UserServiceClient
 	hub         *Hub
 	serviceDial string
+	ingest      IngestHandler
 }
 
-func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) (*Ws, error) {
+func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string, i IngestHandler) (*Ws, error) {
 	if hub == nil {
 		return nil, fmt.Errorf("hub cannot be null.")
 	}
@@ -47,6 +52,7 @@ func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string) (*W
 		grpc:        grpc,
 		hub:         hub,
 		serviceDial: serviceDial,
+		ingest:      i,
 	}, nil
 }
 
@@ -199,5 +205,5 @@ func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
 		return err
 	}
 
-	return h.hub.HandleIncoming(message, ctx)
+	return h.ingest.HandleIncoming(ctx, message)
 }

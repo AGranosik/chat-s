@@ -4,9 +4,8 @@ import (
 	"log"
 	transport "messages/app/transport"
 	ws "messages/app/transport/ws"
-	"messages/chat"
 	env "messages/infra"
-	"messages/infra/kafka"
+	"messages/service"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
 	"google.golang.org/grpc"
@@ -24,19 +23,24 @@ func main() {
 	}
 	defer conn.Close()
 
-	producer, err := kafka.NewProducer([]string{"kafka:9092"})
+	// producer, err := kafka.NewProducer([]string{"kafka:9092"})
+	// if err != nil {
+	// 	log.Fatalf("cannot construct kafka: %v", err)
+	// }
+
+	ingest, err := service.NewIngestHandler()
+
 	if err != nil {
-		log.Fatalf("cannot construct kafka: %v", err)
+		log.Fatalf("cannot construct ingest: %v", err)
 	}
 
-	publisher := chat.NewPublisher(producer)
+	// publisher := chat.NewPublisher(producer)
 	client := contractsv1.NewUserServiceClient(conn)
-	chatService := chat.NewChatService(publisher)
-	hub, error := ws.NewHub(chatService)
+	hub, error := ws.NewHub()
 	if error != nil {
 		log.Fatalf("hub creation failure: %v", error)
 	}
-	ws, err := ws.NewWs(client, hub, cfg.Dial)
+	ws, err := ws.NewWs(client, hub, cfg.Dial, ingest)
 
 	if err != nil {
 		log.Fatalf("Ws connection not established")

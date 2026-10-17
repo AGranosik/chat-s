@@ -24,7 +24,6 @@ func NewPublisher(producer sarama.SyncProducer) MessagePublisher {
 	}
 }
 
-// TODO: MOVE TO Redis Pub/Sub
 // TODO: sequence number somehow
 // TODO: get messsage offset id or number or sth that will help order messages for client
 // TODO: load balancer per active messages connection

@@ -1,17 +1,11 @@
 package ws
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"messages/chat"
 	"slices"
 	"sync"
 )
-
-type MessageHandler interface {
-	HandleIncoming(ctx context.Context, m chat.Message) error
-}
 
 type DeliveryMessage struct {
 	RoomID    string
@@ -63,17 +57,12 @@ func (r *Room) clientIDs() []string {
 type Hub struct {
 	mu    sync.RWMutex
 	rooms map[string]*Room
-	s     MessageHandler
 }
 
-func NewHub(service MessageHandler) (*Hub, error) {
-	if service == nil {
-		return nil, fmt.Errorf("chat service cannot be nil")
-	}
+func NewHub() (*Hub, error) {
 
 	return &Hub{
 		rooms: make(map[string]*Room),
-		s:     service,
 	}, nil
 }
 
@@ -130,12 +119,4 @@ func (h *Hub) allClients() []string {
 	}
 
 	return res
-}
-
-func (h *Hub) HandleIncoming(message chat.Message, ctx context.Context) error {
-	return h.s.HandleIncoming(ctx, message)
-}
-
-func (h *Hub) SendMessage(message chat.Message, ctx context.Context) error {
-	return nil
 }
