@@ -5,6 +5,7 @@ import (
 	transport "messages/app/transport"
 	ws "messages/app/transport/ws"
 	env "messages/infra"
+	"messages/infra/kafka"
 	"messages/service"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
@@ -23,12 +24,12 @@ func main() {
 	}
 	defer conn.Close()
 
-	// producer, err := kafka.NewProducer([]string{"kafka:9092"})
-	// if err != nil {
-	// 	log.Fatalf("cannot construct kafka: %v", err)
-	// }
+	publisher, err := kafka.NewPublisher([]string{"kafka:9092"})
+	if err != nil {
+		log.Fatalf("cannot construct kafka: %v", err)
+	}
 
-	ingest, err := service.NewIngestHandler()
+	ingest, err := service.NewIngestHandler(publisher)
 
 	if err != nil {
 		log.Fatalf("cannot construct ingest: %v", err)

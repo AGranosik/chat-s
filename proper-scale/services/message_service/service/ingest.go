@@ -5,15 +5,20 @@ import (
 	"messages/chat"
 )
 
-// // TODO: where to put it?
-type ingestHandler struct {
+type MessagePublisher interface {
+	Publish(ctx context.Context, roomId string, value []byte) error
 }
 
-func NewIngestHandler() (*ingestHandler, error) {
+type ingestHandler struct {
+	publisher MessagePublisher
+}
 
-	return &ingestHandler{}, nil
+func NewIngestHandler(p MessagePublisher) (*ingestHandler, error) {
+	return &ingestHandler{
+		publisher: p,
+	}, nil
 }
 
 func (i *ingestHandler) HandleIncoming(ctx context.Context, m chat.Message) error {
-	return nil
+	return i.publisher.Publish(ctx, m.RoomID, m.Payload)
 }

@@ -6,7 +6,7 @@ import (
 
 //TODO: asyncproducer & and comapre with sync results
 
-func NewProducer(brokers []string) (sarama.SyncProducer, error) {
+func newProducer(brokers []string) (sarama.SyncProducer, error) {
 	cfg := sarama.NewConfig()
 	cfg.Producer.RequiredAcks = sarama.WaitForAll // or WaitForLocal for lower latency
 	cfg.Producer.Retry.Max = 5

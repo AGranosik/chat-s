@@ -1,4 +1,4 @@
-package chat
+package kafka
 
 import (
 	"context"
@@ -10,18 +10,19 @@ const (
 	topic = "messages"
 )
 
-type MessagePublisher interface {
-	Publish(ctx context.Context, roomId string, value []byte) error
-}
-
 type kafkaPublisher struct {
 	producer sarama.SyncProducer
 }
 
-func NewPublisher(producer sarama.SyncProducer) MessagePublisher {
+func NewPublisher(brokers []string) (*kafkaPublisher, error) {
+	producer, err := newProducer(brokers)
+
+	if err != nil {
+		return nil, err
+	}
 	return &kafkaPublisher{
 		producer: producer,
-	}
+	}, nil
 }
 
 // TODO: sequence number somehow

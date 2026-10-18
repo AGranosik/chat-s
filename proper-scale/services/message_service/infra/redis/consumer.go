@@ -61,12 +61,11 @@ func (c *Consumer) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil // clean shutdown
+			return nil
 		case msg, ok := <-msgs:
 			if !ok {
 				return fmt.Errorf("subscription to %q closed", c.channel)
 			}
-			// At-most-once: a failed message is logged, not retried.
 			if err := c.handler.HandlePayload(ctx, []byte(msg.Payload)); err != nil {
 				log.Printf("redis: handle message on %q: %v", c.channel, err)
 			}
