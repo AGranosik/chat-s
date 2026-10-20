@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -11,6 +12,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type MessageDispatcher interface {
+	Dispatch(ctx context.Context, m chat.Message) error
+}
+
 type ConsumerConfig struct {
 	ChannelPrefix string
 	InstanceName  string
@@ -18,24 +23,24 @@ type ConsumerConfig struct {
 }
 
 type Consumer struct {
-	rdb     redis.UniversalClient
-	channel string
-	bufSize int
-	handler chat.PayloadHandler
+	rdb                redis.UniversalClient
+	channel            string
+	bufSize            int
+	messageDisppatcher MessageDispatcher
 }
 
-func NewConsumer(rdb redis.UniversalClient, c ConsumerConfig, h chat.PayloadHandler) (*Consumer, error) {
+func NewConsumer(rdb redis.UniversalClient, c ConsumerConfig, d MessageDispatcher) (*Consumer, error) {
 	if c.InstanceName == "" {
 		return nil, errors.New("instance name is required")
 	}
-	if h == nil {
-		return nil, errors.New("handler is required")
+	if d == nil {
+		return nil, errors.New("dispatcher is required")
 	}
 	return &Consumer{
-		rdb:     rdb,
-		channel: channelName(c.ChannelPrefix, c.InstanceName),
-		bufSize: c.BufferSize,
-		handler: h,
+		rdb:                rdb,
+		channel:            channelName(c.ChannelPrefix, c.InstanceName),
+		bufSize:            c.BufferSize,
+		messageDisppatcher: d,
 	}, nil
 }
 
@@ -66,7 +71,9 @@ func (c *Consumer) Run(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("subscription to %q closed", c.channel)
 			}
-			if err := c.handler.HandlePayload(ctx, []byte(msg.Payload)); err != nil {
+			var m chat.Message
+			json.Unmarshal([]byte(msg.Payload), &m)
+			if err := c.messageDisppatcher.Dispatch(ctx, m); err != nil {
 				log.Printf("redis: handle message on %q: %v", c.channel, err)
 			}
 		}

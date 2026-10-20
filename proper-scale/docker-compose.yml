@@ -154,6 +154,7 @@ services:
     environment:
       DIAL: chat-server-1
       PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
 
   # server2:
   #   <<: *server

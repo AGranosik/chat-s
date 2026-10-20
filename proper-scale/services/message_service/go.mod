@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/AGranosik/chat/contracts v0.0.0
 	github.com/gorilla/websocket v1.5.3
+	golang.org/x/sync v0.22.0
 	google.golang.org/grpc v1.83.2
 )
 

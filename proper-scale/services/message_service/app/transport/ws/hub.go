@@ -1,8 +1,10 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"messages/chat"
 	"slices"
 	"sync"
 )
@@ -18,49 +20,12 @@ type Room struct {
 	clients map[string]*ClientConnection
 }
 
-func newRoom(id string) *Room {
-	return &Room{
-		ID:      id,
-		clients: make(map[string]*ClientConnection),
-	}
-}
-
-func (r *Room) addClient(c *ClientConnection) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.clients[c.ClientID] = c
-}
-
-func (r *Room) removeClient(clientID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.clients, clientID)
-}
-
-func (r *Room) isEmpty() bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.clients) == 0
-}
-
-func (r *Room) clientIDs() []string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	ids := make([]string, 0, len(r.clients))
-	for id := range r.clients {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
 type Hub struct {
 	mu    sync.RWMutex
 	rooms map[string]*Room
 }
 
 func NewHub() (*Hub, error) {
-
 	return &Hub{
 		rooms: make(map[string]*Room),
 	}, nil
@@ -100,14 +65,22 @@ func (h *Hub) Unregister(clientID string) error {
 	return nil
 }
 
-func (h *Hub) Clients(roomID string) []string {
+func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
 	h.mu.RLock()
-	room, ok := h.rooms[roomID]
-	h.mu.RUnlock()
+	defer h.mu.RUnlock()
+	r, ok := h.rooms[m.RoomID]
 	if !ok {
-		return nil
+		h.mu.RUnlock()
+		return fmt.Errorf("dispatch to room %q", m.RoomID)
 	}
-	return room.clientIDs()
+
+	for _, c := range r.clients {
+		select {
+		case c.Send <- m.Payload:
+		}
+	}
+
+	return nil
 }
 
 func (h *Hub) allClients() []string {
@@ -119,4 +92,40 @@ func (h *Hub) allClients() []string {
 	}
 
 	return res
+}
+
+func newRoom(id string) *Room {
+	return &Room{
+		ID:      id,
+		clients: make(map[string]*ClientConnection),
+	}
+}
+
+func (r *Room) addClient(c *ClientConnection) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clients[c.ClientID] = c
+}
+
+func (r *Room) removeClient(clientID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.clients, clientID)
+}
+
+func (r *Room) isEmpty() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.clients) == 0
+}
+
+func (r *Room) clientIDs() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	ids := make([]string, 0, len(r.clients))
+	for id := range r.clients {
+		ids = append(ids, id)
+	}
+	return ids
 }

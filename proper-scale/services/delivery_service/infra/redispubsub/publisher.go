@@ -77,6 +77,7 @@ func (p *Publisher) PublishMessage(ctx context.Context, m app.Message, instances
 			log.Printf("redis: no subscribers on %q, message dropped", ChannelName(p.prefix, instancesNames[i]))
 		}
 	}
+
 	return nil
 }
 
