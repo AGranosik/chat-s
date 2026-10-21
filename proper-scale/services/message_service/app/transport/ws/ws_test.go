@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"messages/chat"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,16 +20,28 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	testDial    = "some-dial"
+	waitTimeout = 2 * time.Second
+)
+
 type fakeMessageHandler struct {
-	m      chat.Message
-	called bool
-	err    error
+	mu   sync.Mutex
+	msgs []chat.Message
+	err  error
 }
 
-func (h *fakeMessageHandler) HandleIncoming(ctx context.Context, m chat.Message) error {
-	h.called = true
-	h.m = m
+func (h *fakeMessageHandler) HandleIncoming(_ context.Context, m chat.Message) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.msgs = append(h.msgs, m)
 	return h.err
+}
+
+func (h *fakeMessageHandler) received() []chat.Message {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]chat.Message(nil), h.msgs...)
 }
 
 type fakeUserServiceClient struct {
@@ -61,44 +76,39 @@ func (f *fakeUserServiceClient) Ping(ctx context.Context, in *contractsv1.PingCo
 	if f.pingFn != nil {
 		return f.pingFn(ctx, in)
 	}
-	return &contractsv1.ConnectionResponse{}, nil
+	return &contractsv1.ConnectionResponse{Success: true}, nil
 }
 
-func TestNewWsHub(t *testing.T) {
+func TestNewWs(t *testing.T) {
+	handler := &fakeMessageHandler{}
+
 	t.Run("nil hub returns error", func(t *testing.T) {
-
-		_, err := NewWs(&fakeUserServiceClient{}, nil, "somme fake")
-
-		if err == nil {
-			t.Errorf("Should return error on creation when hub is null.")
+		if _, err := NewWs(&fakeUserServiceClient{}, nil, testDial, handler); err == nil {
+			t.Error("should return error on creation when hub is nil")
 		}
 	})
 
 	t.Run("dial cannot be empty", func(t *testing.T) {
-		_, err := NewWs(&fakeUserServiceClient{}, &Hub{}, "")
-
-		if err == nil {
-			t.Errorf("Should return error on creation.")
+		if _, err := NewWs(&fakeUserServiceClient{}, &Hub{}, "", handler); err == nil {
+			t.Error("should return error on creation when dial is empty")
 		}
 	})
 
-	t.Run("creation sucess", func(t *testing.T) {
-		_, err := NewWs(&fakeUserServiceClient{}, &Hub{}, "some-dial")
-
-		if err != nil {
-			t.Errorf("Should create successfully")
+	t.Run("creation success", func(t *testing.T) {
+		if _, err := NewWs(&fakeUserServiceClient{}, &Hub{}, testDial, handler); err != nil {
+			t.Errorf("should create successfully, got: %v", err)
 		}
 	})
 }
 
 func TestWsQuery(t *testing.T) {
-	hub := newWsHub()
+	w := newTestWs(t)
 
 	t.Run("no client id - bad request", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 		rec := httptest.NewRecorder()
 
-		hub.ServeWS(rec, req)
+		w.ServeWS(rec, req)
 
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("got status %d, want %d", rec.Code, http.StatusBadRequest)
@@ -109,272 +119,254 @@ func TestWsQuery(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ws?client_id=1", nil)
 		rec := httptest.NewRecorder()
 
-		hub.ServeWS(rec, req)
+		w.ServeWS(rec, req)
 
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("got status %d, want %d", rec.Code, http.StatusBadRequest)
 		}
 	})
 
-	t.Run("single rooom - success", func(t *testing.T) {
-		handler := &fakeMessageHandler{}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
-		c := dial(t, url+"?client_id=42&room_ids=a,b")
-		time.Sleep(1 * time.Second)
-		if len(hub.rooms) == 0 {
-			t.Errorf("Room should be created.")
-		}
-		c.Close()
+	t.Run("single room - success", func(t *testing.T) {
+		hub := newHub(t)
+		url := startServer(t, hub, &fakeUserServiceClient{}, &fakeMessageHandler{})
+
+		dial(t, url+"?client_id=42&room_ids=a")
+
+		eventually(t, func() bool { return roomCount(hub) == 1 }, "room should be created")
 	})
 }
 
 func TestHub(t *testing.T) {
-	// ws := newWsHub()
+	t.Run("rooms created", func(t *testing.T) {
+		hub := newHub(t)
+		url := startServer(t, hub, &fakeUserServiceClient{}, &fakeMessageHandler{})
 
-	t.Run("room created", func(t *testing.T) {
-		handler := &fakeMessageHandler{}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
-		c := dial(t, url+"?client_id=42&room_ids=a,b")
+		dial(t, url+"?client_id=42&room_ids=a,b")
 
-		time.Sleep(1 * time.Second)
-		if len(hub.rooms) == 0 {
-			t.Errorf("Room should be created.")
-		}
-		c.Close()
+		eventually(t, func() bool { return roomCount(hub) == 2 }, "both rooms should be created")
 	})
 
 	t.Run("connection still open on message failure", func(t *testing.T) {
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
+		handler := &fakeMessageHandler{err: fmt.Errorf("some error")}
+		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		payload := "hehehe"
-		msg := msg("a", payload)
-		serializedMsg, _ := json.Marshal(msg)
-		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second)
-
-		//still can write message
-		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
-			t.Fatal(err)
+		raw := mustMarshal(t, msg("a", "hehehe"))
+		for i := 0; i < 2; i++ {
+			if err := c.WriteMessage(websocket.TextMessage, raw); err != nil {
+				t.Fatal(err)
+			}
 		}
 
-		c.Close()
+		eventually(t, func() bool { return len(handler.received()) == 2 },
+			"handler should receive both messages even though it returns an error")
 	})
+
 	t.Run("unregister called on connection closure", func(t *testing.T) {
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
+		hub := newHub(t)
+		url := startServer(t, hub, &fakeUserServiceClient{}, &fakeMessageHandler{})
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		time.Sleep(1 * time.Second)
-		c.Close()
-		time.Sleep(1 * time.Second)
+		eventually(t, func() bool { return roomCount(hub) == 2 }, "rooms should be created")
 
-		if len(hub.rooms) != 0 {
-			t.Errorf("Room should be deleted")
-		}
+		c.Close()
+
+		eventually(t, func() bool { return roomCount(hub) == 0 }, "rooms should be deleted after close")
 	})
 }
 
 func TestGrpc(t *testing.T) {
 	t.Run("connect called on connection upgrade", func(t *testing.T) {
-		called := false
-
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
+		connected := make(chan *contractsv1.ConnectUserRequest, 1)
 		fake := &fakeUserServiceClient{
-			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-				called = true
-				return &contractsv1.ConnectionResponse{
-					Success: true,
-				}, nil
+			connectFn: func(_ context.Context, req *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+				connected <- req
+				return &contractsv1.ConnectionResponse{Success: true}, nil
 			},
 		}
-		url := startServer(t, hub, fake)
-		c := dial(t, url+"?client_id=42&room_ids=a,b")
-		time.Sleep(1 * time.Second)
+		url := startServer(t, newHub(t), fake, &fakeMessageHandler{})
+		dial(t, url+"?client_id=42&room_ids=a,b")
 
-		c.Close()
-
-		if !called {
-			t.Errorf("grpc connect don't called")
+		select {
+		case req := <-connected:
+			if req.ClientId != "42" {
+				t.Errorf("client id = %q, want %q", req.ClientId, "42")
+			}
+			if req.InstanceName != testDial {
+				t.Errorf("instance name = %q, want %q", req.InstanceName, testDial)
+			}
+			if got := strings.Join(req.RoomsId, ","); got != "a,b" {
+				t.Errorf("rooms = %q, want %q", got, "a,b")
+			}
+		case <-time.After(waitTimeout):
+			t.Fatal("grpc connect was not called")
 		}
-
 	})
 
-	t.Run("connect closed on connect error", func(t *testing.T) {
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
+	t.Run("connection closed on connect error", func(t *testing.T) {
 		fake := &fakeUserServiceClient{
-			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+			connectFn: func(context.Context, *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
 				return nil, fmt.Errorf("mock error")
 			},
 		}
-		url := startServer(t, hub, fake)
+		url := startServer(t, newHub(t), fake, &fakeMessageHandler{})
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
-		_, _, err := c.ReadMessage()
-		if err == nil {
-			t.Fatal("expected connection to be closed by the server")
-		}
-		t.Logf("got expected close error: %v", err)
+
+		expectServerClose(t, c)
 	})
 
-	t.Run("connect closed on not success connection", func(t *testing.T) {
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
+	t.Run("connection closed on unsuccessful connect response", func(t *testing.T) {
 		fake := &fakeUserServiceClient{
-			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-				return &contractsv1.ConnectionResponse{
-					Success: false,
-				}, nil
+			connectFn: func(context.Context, *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+				return &contractsv1.ConnectionResponse{Success: false}, nil
 			},
 		}
-		url := startServer(t, hub, fake)
+		url := startServer(t, newHub(t), fake, &fakeMessageHandler{})
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
-		_, _, err := c.ReadMessage()
-		if err == nil {
-			t.Fatal("expected connection to be closed by the server")
-		}
-		t.Logf("got expected close error: %v", err)
+
+		expectServerClose(t, c)
 	})
+
 	t.Run("disconnect called on connection closure", func(t *testing.T) {
-		called := false
-		handler := &fakeMessageHandler{
-			err: fmt.Errorf("some error"),
-		}
-		hub := newHub(handler)
+		disconnected := make(chan *contractsv1.DisconnectUserRequest, 1)
 		fake := &fakeUserServiceClient{
-			connectFn: func(ctx context.Context, cur *contractsv1.ConnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-				return &contractsv1.ConnectionResponse{
-					Success: true,
-				}, nil
-			},
-			disconnectFn: func(ctx context.Context, dur *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
-				called = true
-				return &contractsv1.ConnectionResponse{
-					Success: true,
-				}, nil
+			disconnectFn: func(_ context.Context, req *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
+				disconnected <- req
+				return &contractsv1.ConnectionResponse{Success: true}, nil
 			},
 		}
-		url := startServer(t, hub, fake)
+		hub := newHub(t)
+		url := startServer(t, hub, fake, &fakeMessageHandler{})
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
-		time.Sleep(1 * time.Second)
+
+		eventually(t, func() bool { return roomCount(hub) == 2 }, "rooms should be created")
 
 		c.Close()
-		time.Sleep(1 * time.Second)
-		_, _, err := c.ReadMessage()
-		if err == nil {
-			t.Fatal("expected connection to be closed by the server")
-		}
 
-		if !called {
-			t.Errorf("grpc disconnect not called")
+		select {
+		case req := <-disconnected:
+			if req.ClientId != "42" {
+				t.Errorf("client id = %q, want %q", req.ClientId, "42")
+			}
+		case <-time.After(waitTimeout):
+			t.Fatal("grpc disconnect was not called")
 		}
 	})
 }
 
 func TestMessage(t *testing.T) {
-	t.Run("message passed further", func(t *testing.T) {
+	t.Run("message deserialized and passed to ingest handler", func(t *testing.T) {
 		handler := &fakeMessageHandler{}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
+		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		payload := "hehehe"
-		serializedPayload, _ := json.Marshal(payload)
-		msg := chat.Message{
-			RoomID:  "a",
-			Payload: serializedPayload,
-		}
-
-		serializedMsg, _ := json.Marshal(msg)
-		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+		want := msg("a", "hehehe")
+		if err := c.WriteMessage(websocket.TextMessage, mustMarshal(t, want)); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second)
-		if !handler.called {
-			t.Errorf("Message not received")
-		}
 
-		c.Close()
+		eventually(t, func() bool { return len(handler.received()) == 1 }, "message not received by handler")
+		assertSameMessage(t, handler.received()[0], want)
 	})
 
-	t.Run("message deserialized", func(t *testing.T) {
+	t.Run("malformed json is dropped and connection stays open", func(t *testing.T) {
 		handler := &fakeMessageHandler{}
-		hub := newHub(handler)
-		fake := &fakeUserServiceClient{}
-		url := startServer(t, hub, fake)
+		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		payload := "hehehe"
-		msg := msg("a", payload)
-
-		serializedMsg, _ := json.Marshal(msg)
-		if err := c.WriteMessage(websocket.TextMessage, serializedMsg); err != nil {
+		if err := c.WriteMessage(websocket.TextMessage, []byte("{not json")); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second)
-		if handler.m.RoomID != msg.RoomID || !bytes.Equal(msg.Payload, handler.m.Payload) {
-			t.Errorf("Wrong message passed")
+		want := msg("a", "hehehe")
+		if err := c.WriteMessage(websocket.TextMessage, mustMarshal(t, want)); err != nil {
+			t.Fatal(err)
 		}
 
-		c.Close()
+		eventually(t, func() bool { return len(handler.received()) == 1 }, "valid message after a bad one should still be handled")
+		assertSameMessage(t, handler.received()[0], want)
 	})
 }
 
-func newWsHub() *Ws {
-	hub, _ := NewWs(&fakeUserServiceClient{}, &Hub{}, "some-dial")
-	return hub
+func newTestWs(t *testing.T) *Ws {
+	t.Helper()
+	w, err := NewWs(&fakeUserServiceClient{}, &Hub{}, testDial, &fakeMessageHandler{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w
 }
 
-func msg(m string, r string) chat.Message {
-	serializedPayload, _ := json.Marshal(m)
+func msg(roomID, payload string) chat.Message {
+	serializedPayload, _ := json.Marshal(payload)
 	return chat.Message{
-		RoomID:  r,
+		RoomID:  roomID,
 		Payload: serializedPayload,
 	}
 }
 
-func newHub(handler *fakeMessageHandler) *Hub {
-	if handler == nil {
-		handler = &fakeMessageHandler{}
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
 	}
-	hub, _ := NewHub(handler)
+	return b
+}
+
+func assertSameMessage(t *testing.T, got, want chat.Message) {
+	t.Helper()
+	if got.RoomID != want.RoomID || !bytes.Equal(got.Payload, want.Payload) {
+		t.Errorf("wrong message passed: got %+v, want %+v", got, want)
+	}
+}
+
+func newHub(t *testing.T) *Hub {
+	t.Helper()
+	hub, err := NewHub()
+	if err != nil {
+		t.Fatal(err)
+	}
 	return hub
 }
 
-func startServer(t *testing.T, hub *Hub, client contractsv1.UserServiceClient) string {
+func roomCount(h *Hub) int {
+	return len(h.rooms)
+}
+
+func eventually(t *testing.T, cond func() bool, failMsg string) {
 	t.Helper()
-	if hub == nil {
-		hub = &Hub{}
+	deadline := time.Now().Add(waitTimeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	w, err := NewWs(client, hub, "some-dial") // use your real Hub constructor
+	t.Fatal(failMsg)
+}
+
+func expectServerClose(t *testing.T, c *websocket.Conn) {
+	t.Helper()
+	c.SetReadDeadline(time.Now().Add(waitTimeout))
+	_, _, err := c.ReadMessage()
+	if err == nil {
+		t.Fatal("expected connection to be closed by the server")
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		t.Fatal("server did not close the connection in time")
+	}
+	t.Logf("got expected close error: %v", err)
+}
+
+func startServer(t *testing.T, hub *Hub, client contractsv1.UserServiceClient, ingest IngestHandler) string {
+	t.Helper()
+	w, err := NewWs(client, hub, testDial, ingest)
 	if err != nil {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(w.ServeWS))
-	// t.Cleanup(srv.Close)
+	t.Cleanup(srv.Close)
 	return "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
 }
 

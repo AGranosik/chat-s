@@ -74,9 +74,7 @@ func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
 	}
 
 	for _, c := range r.clients {
-		select {
-		case c.Send <- m.Payload:
-		}
+		c.Send <- m.Payload
 	}
 
 	return nil
