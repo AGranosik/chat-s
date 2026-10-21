@@ -1,6 +1,11 @@
 package ws
 
-import "context"
+import (
+	"context"
+	"log"
+
+	"github.com/gorilla/websocket"
+)
 
 type Conn interface {
 	WriteMessage(messageType int, data []byte) error
@@ -21,14 +26,16 @@ func NewClientConnection(clientID string, conn Conn) *ClientConnection {
 }
 
 func (c *ClientConnection) WritePump(ctx context.Context) {
-	defer c.Conn.Close()
+	defer c.conn.Close()
 	for {
 		select {
 		case msg, ok := <-c.Send:
 			if !ok {
+				log.Printf("consuming channel error.")
 				return
 			}
-			if err := c.Conn.WriteMessage(TextMessage, msg); err != nil {
+			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				log.Printf("errorr writng msg, err=%v", err)
 				return
 			}
 		case <-ctx.Done():

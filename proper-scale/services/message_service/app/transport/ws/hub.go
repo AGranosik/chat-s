@@ -70,8 +70,7 @@ func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
 	defer h.mu.RUnlock()
 	r, ok := h.rooms[m.RoomID]
 	if !ok {
-		h.mu.RUnlock()
-		return fmt.Errorf("dispatch to room %q", m.RoomID)
+		return fmt.Errorf("error - dispatch to room %q", m.RoomID)
 	}
 
 	for _, c := range r.clients {

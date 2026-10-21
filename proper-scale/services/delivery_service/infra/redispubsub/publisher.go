@@ -2,6 +2,7 @@ package redispubsub
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -63,9 +64,15 @@ func (p *Publisher) PublishMessage(ctx context.Context, m app.Message, instances
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
+	serialized, err := json.Marshal(m)
+
+	if err != nil {
+		return err
+	}
+
 	pipe := p.rdb.Pipeline()
 	for _, name := range instancesNames {
-		pipe.Publish(ctx, ChannelName(p.prefix, name), m.Value)
+		pipe.Publish(ctx, ChannelName(p.prefix, name), serialized)
 	}
 
 	cmds, err := pipe.Exec(ctx)

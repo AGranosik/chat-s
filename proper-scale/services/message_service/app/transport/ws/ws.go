@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
 	"messages/chat"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -59,18 +61,14 @@ func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string, i I
 func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	clientID := r.URL.Query().Get("client_id")
-	if clientID == "" {
-		http.Error(w, "client_id is required", http.StatusBadRequest)
+
+	clientID, roomIDs, err := getParams(r.URL.Query())
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	roomParam := r.URL.Query().Get("room_ids")
-	if roomParam == "" {
-		http.Error(w, "room_ids is required", http.StatusBadRequest)
-		return
-	}
-	roomIDs := strings.Split(roomParam, ",")
 	conn, err := h.configureConnection(w, r, ctx, clientID, roomIDs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -78,20 +76,18 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("client connected", "clientId", clientID)
 	defer conn.Close()
-	defer h.disconnect(ctx, clientID, conn)
-	go h.runPing(conn, ctx)
+	defer h.disconnect(clientID, conn)
+	go h.runPing(ctx, conn, clientID)
 
-	err = h.hub.Register(roomIDs, &ClientConnection{
-		ClientID: clientID,
-		Conn:     conn,
-		Send:     make(chan []byte),
-	})
+	client := NewClientConnection(clientID, conn)
+	err = h.hub.Register(roomIDs, client)
 
 	if err != nil {
 		http.Error(w, "Error on conn creation", http.StatusBadRequest)
 		return
 	}
 
+	go client.WritePump(ctx)
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
@@ -150,9 +146,13 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	return conn, err
 }
 
-func (h *Ws) disconnect(ctx context.Context, clientId string, wsConn *websocket.Conn) {
-	defer h.hub.Unregister(clientId)
-	defer wsConn.Close()
+func (h *Ws) disconnect(clientId string, wsConn *websocket.Conn) {
+	log.Printf("disconnected")
+	h.hub.Unregister(clientId)
+	wsConn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
 		ClientId: clientId,
 	})
@@ -168,25 +168,27 @@ func (h *Ws) disconnect(ctx context.Context, clientId string, wsConn *websocket.
 	}
 }
 
-func (h *Ws) runPing(conn *websocket.Conn, ctx context.Context) {
+func (h *Ws) runPing(ctx context.Context, conn *websocket.Conn, clientId string) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)); err != nil {
+				log.Printf("connection closed - ping, %v", err)
 				conn.Close()
 				return
 			}
 
 			pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			res, err := h.grpc.Ping(pctx, &contractsv1.PingConnectionRequest{
-				ClientsId:    h.hub.allClients(),
+				ClientId:     clientId,
 				InstanceName: h.serviceDial,
 			})
 
 			cancel()
 			if err != nil || !res.Success {
+				log.Printf("connection closed - grpc ping, err: %v", err)
 				conn.Close()
 				return
 			}
@@ -206,4 +208,20 @@ func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
 	}
 
 	return h.ingest.HandleIncoming(ctx, message)
+}
+
+func getParams(url url.Values) (string, []string, error) {
+	clientID := url.Get("client_id")
+	if clientID == "" {
+
+		return "", nil, fmt.Errorf("client_id is required")
+	}
+
+	roomParam := url.Get("room_ids")
+	if roomParam == "" {
+		return "", nil, fmt.Errorf("room_ids is required")
+	}
+	roomIDs := strings.Split(roomParam, ",")
+
+	return clientID, roomIDs, nil
 }

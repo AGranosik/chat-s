@@ -12,6 +12,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type redisMessage struct {
+	Key, Value []byte
+	Headers    map[string]string
+	Timestamp  time.Time
+}
+
 type MessageDispatcher interface {
 	Dispatch(ctx context.Context, m chat.Message) error
 }
@@ -71,9 +77,16 @@ func (c *Consumer) Run(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("subscription to %q closed", c.channel)
 			}
-			var m chat.Message
+			var m redisMessage
 			json.Unmarshal([]byte(msg.Payload), &m)
-			if err := c.messageDisppatcher.Dispatch(ctx, m); err != nil {
+
+			cMsg := chat.Message{
+				RoomID:  string(m.Key),
+				Payload: m.Value,
+			}
+
+			log.Printf("msg deserialized: %v", cMsg.RoomID)
+			if err := c.messageDisppatcher.Dispatch(ctx, cMsg); err != nil {
 				log.Printf("redis: handle message on %q: %v", c.channel, err)
 			}
 		}

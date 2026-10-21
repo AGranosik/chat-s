@@ -81,22 +81,21 @@ func (s *ConnectionService) Disconnect(ctx context.Context, req *contractsv1.Dis
 }
 
 func (s *ConnectionService) Ping(ctx context.Context, req *contractsv1.PingConnectionRequest) (*contractsv1.ConnectionResponse, error) {
-	clientsId := req.GetClientsId()
+	clientId := req.GetClientId()
 	instanceName := req.GetInstanceName()
 
 	pipe := s.Rdb.TxPipeline()
-	for _, c := range clientsId {
 
-		ck := clientKey(c, instanceName)
-		roomsId, _ := s.Rdb.SMembers(ctx, ck).Result()
+	ck := clientKey(clientId, instanceName)
+	roomsId, _ := s.Rdb.SMembers(ctx, ck).Result()
 
-		saveRooms(ctx, c, instanceName, roomsId, pipe)
+	saveRooms(ctx, clientId, instanceName, roomsId, pipe)
 
-		pipe.Expire(ctx, ck, connTTL)
-	}
+	pipe.Expire(ctx, ck, connTTL)
+
 	_, err := pipe.Exec(ctx)
 
-	log.Printf("Ping for: %s", clientsId)
+	log.Printf("Ping for: %s", clientId)
 	if err != nil {
 		return &contractsv1.ConnectionResponse{
 			Success: false,

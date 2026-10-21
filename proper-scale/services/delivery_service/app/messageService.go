@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	contractsv1 "github.com/AGranosik/chat/contracts/protos"
@@ -43,5 +44,6 @@ func (s *MessageService) Handle(ctx context.Context, m Message) error {
 		return nil
 	}
 
+	log.Printf("msg to publish: %v", string(m.Key))
 	return s.publisher.PublishMessage(ctx, m, instanceNames)
 }
