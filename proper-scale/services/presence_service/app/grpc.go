@@ -39,7 +39,7 @@ func (s *ConnectionService) Connect(ctx context.Context, req *contractsv1.Connec
 	}, nil
 }
 
-// TODO: RUN
+// TODO: otbox with ordering and gaps
 // TODO : e2e tests
 // TODO: load tests
 func (s *ConnectionService) Disconnect(ctx context.Context, req *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
