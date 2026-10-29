@@ -78,15 +78,21 @@ func (c *Consumer) Run(ctx context.Context) error {
 				return fmt.Errorf("subscription to %q closed", c.channel)
 			}
 			var m redisMessage
-			json.Unmarshal([]byte(msg.Payload), &m)
-
-			cMsg := chat.Message{
-				RoomID:  string(m.Key),
-				Payload: m.Value,
+			if err := json.Unmarshal([]byte(msg.Payload), &m); err != nil {
+				log.Printf("redis: decode message envelope on %q: %v", c.channel, err)
+				continue
+			}
+			var event chat.Message
+			if err := json.Unmarshal(m.Value, &event); err != nil {
+				log.Printf("redis: decode room event on %q: %v", c.channel, err)
+				continue
+			}
+			if event.RoomID != string(m.Key) {
+				log.Printf("redis: room key %q does not match event room %q", string(m.Key), event.RoomID)
+				continue
 			}
 
-			log.Printf("msg deserialized: %v", cMsg.RoomID)
-			if err := c.messageDisppatcher.Dispatch(ctx, cMsg); err != nil {
+			if err := c.messageDisppatcher.Dispatch(ctx, event); err != nil {
 				log.Printf("redis: handle message on %q: %v", c.channel, err)
 			}
 		}

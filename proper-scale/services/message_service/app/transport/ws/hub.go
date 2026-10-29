@@ -9,11 +9,6 @@ import (
 	"sync"
 )
 
-type DeliveryMessage struct {
-	RoomID    string
-	Payload   json.RawMessage `json:"payload"`
-	ClientsID []string
-}
 type Room struct {
 	ID      string
 	mu      sync.RWMutex
@@ -66,6 +61,14 @@ func (h *Hub) Unregister(clientID string) error {
 }
 
 func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
+	if err := m.Validate(); err != nil {
+		return fmt.Errorf("invalid message event: %w", err)
+	}
+	serialized, err := json.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("marshal message event: %w", err)
+	}
+
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	r, ok := h.rooms[m.RoomID]
@@ -74,7 +77,11 @@ func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
 	}
 
 	for _, c := range r.clients {
-		c.Send <- m.Payload
+		select {
+		case c.Send <- serialized:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	return nil

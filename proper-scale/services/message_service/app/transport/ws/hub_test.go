@@ -9,6 +9,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 )
 
 func newConnWithSend(id string, buffer int) *ClientConnection {
@@ -284,7 +285,7 @@ func TestHubDispatch(t *testing.T) {
 	t.Run("unknown room returns error", func(t *testing.T) {
 		hub, _ := NewHub()
 
-		err := hub.Dispatch(ctx, chat.Message{RoomID: "nonexistent"})
+		err := hub.Dispatch(ctx, testEvent("nonexistent", json.RawMessage(`{"text":"hi"}`)))
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -300,15 +301,19 @@ func TestHubDispatch(t *testing.T) {
 		if err := hub.Register([]string{"room1"}, conn2); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		payload := json.RawMessage(`{"text":"hi"}`)
+		event := testEvent("room1", json.RawMessage(`{"text":"hi"}`))
+		want, err := json.Marshal(event)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		if err := hub.Dispatch(ctx, chat.Message{RoomID: "room1", Payload: payload}); err != nil {
+		if err := hub.Dispatch(ctx, event); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
 		for _, conn := range []*ClientConnection{conn1, conn2} {
-			if got := receive(t, conn); string(got) != string(payload) {
-				t.Fatalf("client %s: got payload %s, want %s", conn.ClientID, got, payload)
+			if got := receive(t, conn); string(got) != string(want) {
+				t.Fatalf("client %s: got event %s, want %s", conn.ClientID, got, want)
 			}
 		}
 	})
@@ -328,8 +333,7 @@ func TestHubDispatch(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		msg := chat.Message{RoomID: "room1", Payload: json.RawMessage(`{"text":"hi"}`)}
-		if err := hub.Dispatch(ctx, msg); err != nil {
+		if err := hub.Dispatch(ctx, testEvent("room1", json.RawMessage(`{"text":"hi"}`))); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -354,13 +358,25 @@ func TestHubDispatch(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if err := hub.Dispatch(ctx, chat.Message{RoomID: "room1"}); err == nil {
+		if err := hub.Dispatch(ctx, testEvent("room1", json.RawMessage(`null`))); err == nil {
 			t.Fatal("expected error, got nil")
 		}
 		if got := len(conn.Send); got != 0 {
 			t.Fatalf("got %d payloads, want 0", got)
 		}
 	})
+}
+
+func testEvent(roomID string, payload json.RawMessage) chat.Message {
+	return chat.Message{
+		Version:         1,
+		MessageID:       "message-1",
+		ClientMessageID: "client-message-1",
+		RoomID:          roomID,
+		RoomSeq:         1,
+		CreatedAt:       time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),
+		Payload:         payload,
+	}
 }
 
 func TestRoomAddClient(t *testing.T) {

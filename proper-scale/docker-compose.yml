@@ -5,11 +5,7 @@ x-server: &server
     context: .
     dockerfile: /services/message_service/Dockerfile
   depends_on:
-    kafka:
-      condition: service_healthy      
     postgres:
-      condition: service_healthy
-    redis:
       condition: service_healthy
   expose:
     - "8080" # internal only: reachable by nginx on the compose network, never published to the host

@@ -2,23 +2,33 @@ package service
 
 import (
 	"context"
-	"messages/chat"
+	"errors"
+	"strings"
+
+	messagev1 "github.com/AGranosik/chat/contracts/messages"
 )
 
-type MessagePublisher interface {
-	Publish(ctx context.Context, roomId string, value []byte) error
+type MessageStore interface {
+	Accept(ctx context.Context, clientID string, request messagev1.SendRequest) (messagev1.Event, error)
 }
 
 type ingestHandler struct {
-	publisher MessagePublisher
+	store MessageStore
 }
 
-func NewIngestHandler(p MessagePublisher) (*ingestHandler, error) {
-	return &ingestHandler{
-		publisher: p,
-	}, nil
+func NewIngestHandler(store MessageStore) (*ingestHandler, error) {
+	if store == nil {
+		return nil, errors.New("message store is required")
+	}
+	return &ingestHandler{store: store}, nil
 }
 
-func (i *ingestHandler) HandleIncoming(ctx context.Context, m chat.Message) error {
-	return i.publisher.Publish(ctx, m.RoomID, m.Payload)
+func (i *ingestHandler) HandleIncoming(ctx context.Context, clientID string, request messagev1.SendRequest) (messagev1.Event, error) {
+	if strings.TrimSpace(clientID) == "" {
+		return messagev1.Event{}, errors.New("client_id is required")
+	}
+	if err := request.Validate(); err != nil {
+		return messagev1.Event{}, err
+	}
+	return i.store.Accept(ctx, clientID, request)
 }

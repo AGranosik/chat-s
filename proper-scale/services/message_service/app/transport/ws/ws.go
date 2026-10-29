@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"messages/chat"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
+	messagev1 "github.com/AGranosik/chat/contracts/messages"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,7 +32,7 @@ var upgrader = websocket.Upgrader{
 }
 
 type IngestHandler interface {
-	HandleIncoming(ctx context.Context, m chat.Message) error
+	HandleIncoming(ctx context.Context, clientID string, request messagev1.SendRequest) (messagev1.Event, error)
 }
 
 type Ws struct {
@@ -49,6 +49,9 @@ func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string, i I
 
 	if len(serviceDial) == 0 {
 		return nil, fmt.Errorf("service dial cannot be empty")
+	}
+	if i == nil {
+		return nil, fmt.Errorf("ingest handler cannot be nil")
 	}
 	return &Ws{
 		grpc:        grpc,
@@ -107,7 +110,7 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 			continue // ignore ping/pong/close control frames here, gorilla handles them
 		}
 
-		if err := h.handleMessage(data, ctx); err != nil {
+		if err := h.handleMessage(data, ctx, clientID, client); err != nil {
 			slog.Warn("bad message, dropping", "err", err)
 			continue // don't kill the connection over one bad message
 		}
@@ -199,15 +202,60 @@ func (h *Ws) runPing(ctx context.Context, conn *websocket.Conn, clientId string)
 	}
 }
 
-func (h *Ws) handleMessage(data []byte, ctx context.Context) error {
-	var message chat.Message
-
-	err := json.Unmarshal(data, &message)
-	if err != nil {
-		return err
+func (h *Ws) handleMessage(data []byte, ctx context.Context, clientID string, client *ClientConnection) error {
+	var request messagev1.SendRequest
+	if err := json.Unmarshal(data, &request); err != nil {
+		return h.enqueueRejected(ctx, client, "", messagev1.InvalidRequestErrorCode)
 	}
+	if err := request.Validate(); err != nil {
+		slog.Warn("invalid send request", "err", err)
+		return h.enqueueRejected(ctx, client, request.ClientMessageID, messagev1.InvalidRequestErrorCode)
+	}
+	event, err := h.ingest.HandleIncoming(ctx, clientID, request)
+	if err != nil {
+		slog.Error("message was not accepted", "clientMessageId", request.ClientMessageID, "err", err)
+		return h.enqueueRejected(ctx, client, request.ClientMessageID, messagev1.NotAcceptedErrorCode)
+	}
+	ack := messagev1.AcceptedAck{
+		Type:            messagev1.AcceptedFrameType,
+		Version:         messagev1.Version,
+		MessageID:       event.MessageID,
+		ClientMessageID: event.ClientMessageID,
+		RoomID:          event.RoomID,
+		RoomSeq:         event.RoomSeq,
+		CreatedAt:       event.CreatedAt,
+	}
+	if err := ack.Validate(); err != nil {
+		slog.Error("invalid accepted message", "clientMessageId", request.ClientMessageID, "err", err)
+		return h.enqueueRejected(ctx, client, request.ClientMessageID, messagev1.NotAcceptedErrorCode)
+	}
+	return h.enqueue(ctx, client, ack)
+}
 
-	return h.ingest.HandleIncoming(ctx, message)
+func (h *Ws) enqueueRejected(ctx context.Context, client *ClientConnection, clientMessageID string, errorCode string) error {
+	rejection := messagev1.RejectedAck{
+		Type:            messagev1.RejectedFrameType,
+		Version:         messagev1.Version,
+		ClientMessageID: clientMessageID,
+		ErrorCode:       errorCode,
+	}
+	if err := rejection.Validate(); err != nil {
+		return fmt.Errorf("invalid rejected message: %w", err)
+	}
+	return h.enqueue(ctx, client, rejection)
+}
+
+func (h *Ws) enqueue(ctx context.Context, client *ClientConnection, frame any) error {
+	serialized, err := json.Marshal(frame)
+	if err != nil {
+		return fmt.Errorf("marshal websocket frame: %w", err)
+	}
+	select {
+	case client.Send <- serialized:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func getParams(url url.Values) (string, []string, error) {

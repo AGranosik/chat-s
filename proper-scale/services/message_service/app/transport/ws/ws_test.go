@@ -1,21 +1,21 @@
 package ws
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"messages/chat"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
+	messagev1 "github.com/AGranosik/chat/contracts/messages"
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 )
@@ -26,22 +26,38 @@ const (
 )
 
 type fakeMessageHandler struct {
-	mu   sync.Mutex
-	msgs []chat.Message
-	err  error
+	mu       sync.Mutex
+	requests []incomingRequest
+	err      error
 }
 
-func (h *fakeMessageHandler) HandleIncoming(_ context.Context, m chat.Message) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.msgs = append(h.msgs, m)
-	return h.err
+type incomingRequest struct {
+	clientID string
+	request  messagev1.SendRequest
 }
 
-func (h *fakeMessageHandler) received() []chat.Message {
+func (h *fakeMessageHandler) HandleIncoming(_ context.Context, clientID string, request messagev1.SendRequest) (messagev1.Event, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return append([]chat.Message(nil), h.msgs...)
+	h.requests = append(h.requests, incomingRequest{clientID: clientID, request: request})
+	if h.err != nil {
+		return messagev1.Event{}, h.err
+	}
+	return messagev1.Event{
+		Version:         messagev1.Version,
+		MessageID:       "message-1",
+		ClientMessageID: request.ClientMessageID,
+		RoomID:          request.RoomID,
+		RoomSeq:         1,
+		CreatedAt:       time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),
+		Payload:         request.Payload,
+	}, nil
+}
+
+func (h *fakeMessageHandler) received() []incomingRequest {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]incomingRequest(nil), h.requests...)
 }
 
 type fakeUserServiceClient struct {
@@ -99,6 +115,12 @@ func TestNewWs(t *testing.T) {
 			t.Errorf("should create successfully, got: %v", err)
 		}
 	})
+
+	t.Run("nil ingest handler returns error", func(t *testing.T) {
+		if _, err := NewWs(&fakeUserServiceClient{}, &Hub{}, testDial, nil); err == nil {
+			t.Error("should return error when ingest handler is nil")
+		}
+	})
 }
 
 func TestWsQuery(t *testing.T) {
@@ -151,7 +173,7 @@ func TestHub(t *testing.T) {
 		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		raw := mustMarshal(t, msg("a", "hehehe"))
+		raw := mustMarshal(t, send("a", "key-1", `{"text":"hello"}`))
 		for i := 0; i < 2; i++ {
 			if err := c.WriteMessage(websocket.TextMessage, raw); err != nil {
 				t.Fatal(err)
@@ -260,16 +282,30 @@ func TestMessage(t *testing.T) {
 		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
 
-		want := msg("a", "hehehe")
+		want := send("a", "key-1", `{"text":"hello"}`)
 		if err := c.WriteMessage(websocket.TextMessage, mustMarshal(t, want)); err != nil {
 			t.Fatal(err)
 		}
 
 		eventually(t, func() bool { return len(handler.received()) == 1 }, "message not received by handler")
-		assertSameMessage(t, handler.received()[0], want)
+		got := handler.received()[0]
+		if got.clientID != "42" || !reflect.DeepEqual(got.request, want) {
+			t.Fatalf("received request = %+v, want client 42 and %+v", got, want)
+		}
+		_, data, err := c.ReadMessage()
+		if err != nil {
+			t.Fatalf("read accepted acknowledgement: %v", err)
+		}
+		var ack messagev1.AcceptedAck
+		if err := json.Unmarshal(data, &ack); err != nil {
+			t.Fatalf("decode accepted acknowledgement: %v", err)
+		}
+		if ack.Type != messagev1.AcceptedFrameType || ack.RoomSeq != 1 || ack.ClientMessageID != want.ClientMessageID {
+			t.Fatalf("acknowledgement = %+v", ack)
+		}
 	})
 
-	t.Run("malformed json is dropped and connection stays open", func(t *testing.T) {
+	t.Run("malformed and deferred control frames are dropped", func(t *testing.T) {
 		handler := &fakeMessageHandler{}
 		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
@@ -277,13 +313,18 @@ func TestMessage(t *testing.T) {
 		if err := c.WriteMessage(websocket.TextMessage, []byte("{not json")); err != nil {
 			t.Fatal(err)
 		}
-		want := msg("a", "hehehe")
+		if err := c.WriteMessage(websocket.TextMessage, []byte(`{"type":"resume","version":1,"room_id":"a","after_seq":0}`)); err != nil {
+			t.Fatal(err)
+		}
+		want := send("a", "key-1", `{"text":"hello"}`)
 		if err := c.WriteMessage(websocket.TextMessage, mustMarshal(t, want)); err != nil {
 			t.Fatal(err)
 		}
 
 		eventually(t, func() bool { return len(handler.received()) == 1 }, "valid message after a bad one should still be handled")
-		assertSameMessage(t, handler.received()[0], want)
+		if got := handler.received()[0].request; !reflect.DeepEqual(got, want) {
+			t.Fatalf("request = %+v, want %+v", got, want)
+		}
 	})
 }
 
@@ -296,11 +337,13 @@ func newTestWs(t *testing.T) *Ws {
 	return w
 }
 
-func msg(roomID, payload string) chat.Message {
-	serializedPayload, _ := json.Marshal(payload)
-	return chat.Message{
-		RoomID:  roomID,
-		Payload: serializedPayload,
+func send(roomID, key, payload string) messagev1.SendRequest {
+	return messagev1.SendRequest{
+		Type:            messagev1.SendFrameType,
+		Version:         messagev1.Version,
+		ClientMessageID: key,
+		RoomID:          roomID,
+		Payload:         json.RawMessage(payload),
 	}
 }
 
@@ -311,13 +354,6 @@ func mustMarshal(t *testing.T, v any) []byte {
 		t.Fatal(err)
 	}
 	return b
-}
-
-func assertSameMessage(t *testing.T, got, want chat.Message) {
-	t.Helper()
-	if got.RoomID != want.RoomID || !bytes.Equal(got.Payload, want.Payload) {
-		t.Errorf("wrong message passed: got %+v, want %+v", got, want)
-	}
 }
 
 func newHub(t *testing.T) *Hub {

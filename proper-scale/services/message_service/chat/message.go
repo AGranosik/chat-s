@@ -1,8 +1,5 @@
 package chat
 
-import "encoding/json"
+import messagev1 "github.com/AGranosik/chat/contracts/messages"
 
-type Message struct {
-	RoomID  string          `json:"room_id"`
-	Payload json.RawMessage `json:"payload"`
-}
+type Message = messagev1.Event

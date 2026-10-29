@@ -21,7 +21,7 @@ import (
 	transport "messages/app/transport"
 	ws "messages/app/transport/ws"
 	env "messages/infra"
-	"messages/infra/kafka"
+	"messages/infra/postgres"
 	"messages/infra/redis"
 	"messages/service"
 )
@@ -51,18 +51,23 @@ func run() error {
 	}
 	defer conn.Close()
 
-	rdb, err := newRedisClient(ctx)
-	if err != nil {
-		return fmt.Errorf("redis: %w", err)
-	}
+	rdb := newRedisClient()
 	defer rdb.Close()
 
-	publisher, err := kafka.NewPublisher([]string{env.GetEnv("KAFKA_BROKERS", "kafka:9092")})
+	pool, err := postgres.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("kafka publisher: %w", err)
+		return fmt.Errorf("message database: %w", err)
+	}
+	defer pool.Close()
+	if err := postgres.RunMigrations(ctx, pool, cfg.MigrationsDir); err != nil {
+		return fmt.Errorf("message database migrations: %w", err)
 	}
 
-	ingest, err := service.NewIngestHandler(publisher)
+	store, err := postgres.NewStore(pool)
+	if err != nil {
+		return fmt.Errorf("message repository: %w", err)
+	}
+	ingest, err := service.NewIngestHandler(store)
 	if err != nil {
 		return fmt.Errorf("ingest handler: %w", err)
 	}
@@ -87,13 +92,13 @@ func run() error {
 		return fmt.Errorf("ws handler: %w", err)
 	}
 
-	srv := transport.CreateHttpTransport(":8080", wsHandler)
+	srv := transport.CreateHttpTransport(httpAddr, wsHandler, pool.Ping)
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		log.Printf("starting consumer for instance %q", instance)
-		return consumer.Run(ctx)
+		return runRedisConsumer(ctx, consumer)
 	})
 
 	g.Go(func() error {
@@ -121,13 +126,32 @@ func newPresenceConn(target string) (*grpc.ClientConn, error) {
 	)
 }
 
-func newRedisClient(ctx context.Context) (*goredis.Client, error) {
-	rdb := goredis.NewClient(&goredis.Options{
+func newRedisClient() *goredis.Client {
+	return goredis.NewClient(&goredis.Options{
 		Addr: env.GetEnv("REDIS_ADDR", "localhost:6379"),
 	})
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		rdb.Close()
-		return nil, err
+}
+
+func runRedisConsumer(ctx context.Context, consumer interface{ Run(context.Context) error }) error {
+	delay := 250 * time.Millisecond
+	for {
+		err := consumer.Run(ctx)
+		if ctx.Err() != nil {
+			return nil
+		}
+		log.Printf("redis consumer stopped: %v; retrying in %s", err, delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil
+		case <-timer.C:
+		}
+		if delay < 5*time.Second {
+			delay *= 2
+			if delay > 5*time.Second {
+				delay = 5 * time.Second
+			}
+		}
 	}
-	return rdb, nil
 }
