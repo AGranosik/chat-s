@@ -2,7 +2,7 @@ package kafka
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"main/app"
 
 	"github.com/IBM/sarama"
@@ -33,14 +33,31 @@ func (h *Handler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama
 			if !ok {
 				return nil
 			}
-			m := app.Message{Key: msg.Key, Value: msg.Value, Timestamp: msg.Timestamp}
+			m := app.Message{
+				Key:       msg.Key,
+				Value:     msg.Value,
+				Headers:   kafkaHeaders(msg.Headers),
+				Timestamp: msg.Timestamp,
+			}
 			if err := h.handler.Handle(session.Context(), m); err != nil {
-				log.Fatalf("error during consuming: %v", err)
-				continue
+				return fmt.Errorf("handle Kafka message %s[%d] at offset %d: %w", msg.Topic, msg.Partition, msg.Offset, err)
 			}
 			session.MarkMessage(msg, "")
 		case <-session.Context().Done():
 			return nil
 		}
 	}
+}
+
+func kafkaHeaders(headers []*sarama.RecordHeader) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	values := make(map[string]string, len(headers))
+	for _, header := range headers {
+		if header != nil {
+			values[string(header.Key)] = string(header.Value)
+		}
+	}
+	return values
 }

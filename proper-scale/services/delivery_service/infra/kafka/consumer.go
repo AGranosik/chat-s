@@ -9,6 +9,8 @@ import (
 	"github.com/IBM/sarama"
 )
 
+const consumerRetryBackoff = time.Second
+
 type Consumer struct {
 	cfg     Config
 	handler *Handler
@@ -34,18 +36,18 @@ func (c *Consumer) Run(ctx context.Context) error {
 		}
 	}()
 	for {
-		if err := group.Consume(ctx, c.cfg.Topics, c.handler); err != nil {
-			if errors.Is(err, sarama.ErrClosedConsumerGroup) || ctx.Err() != nil {
-				return nil
-			}
-			log.Printf("consume error: %v", err)
-			select {
-			case <-time.After(time.Second):
-			case <-ctx.Done():
-				return nil
-			}
+		err := group.Consume(ctx, c.cfg.Topics, c.handler)
+		if errors.Is(err, sarama.ErrClosedConsumerGroup) || ctx.Err() != nil {
+			return nil
 		}
-		if ctx.Err() != nil {
+		if err != nil {
+			log.Printf("consume error: %v", err)
+		}
+		timer := time.NewTimer(consumerRetryBackoff)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
 			return nil
 		}
 	}

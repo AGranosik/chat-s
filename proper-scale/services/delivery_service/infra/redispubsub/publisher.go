@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"main/app"
@@ -81,7 +81,10 @@ func (p *Publisher) PublishMessage(ctx context.Context, m app.Message, instances
 	}
 	for i, cmd := range cmds {
 		if ic, ok := cmd.(*redis.IntCmd); ok && ic.Val() == 0 {
-			log.Printf("redis: no subscribers on %q, message dropped", ChannelName(p.prefix, instancesNames[i]))
+			slog.Warn("Redis Pub/Sub live miss: no active subscribers",
+				"channel", ChannelName(p.prefix, instancesNames[i]),
+				"room_id", string(m.Key),
+			)
 		}
 	}
 
