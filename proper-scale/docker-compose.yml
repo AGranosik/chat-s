@@ -128,6 +128,26 @@ services:
         limits:
           memory: 80m
 
+  outbox_relay:
+    build:
+      context: .
+      dockerfile: services/outbox_relay/Dockerfile
+    container_name: outbox-relay
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: messages
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 100m
+
   redis:
     image: redis:7-alpine
     ports:
