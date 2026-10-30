@@ -305,7 +305,7 @@ func TestMessage(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed and deferred control frames are dropped", func(t *testing.T) {
+	t.Run("malformed and unsupported frames do not close connection", func(t *testing.T) {
 		handler := &fakeMessageHandler{}
 		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler)
 		c := dial(t, url+"?client_id=42&room_ids=a,b")
@@ -313,7 +313,7 @@ func TestMessage(t *testing.T) {
 		if err := c.WriteMessage(websocket.TextMessage, []byte("{not json")); err != nil {
 			t.Fatal(err)
 		}
-		if err := c.WriteMessage(websocket.TextMessage, []byte(`{"type":"resume","version":1,"room_id":"a","after_seq":0}`)); err != nil {
+		if err := c.WriteMessage(websocket.TextMessage, []byte(`{"type":"unsupported"}`)); err != nil {
 			t.Fatal(err)
 		}
 		want := send("a", "key-1", `{"text":"hello"}`)
@@ -325,7 +325,25 @@ func TestMessage(t *testing.T) {
 		if got := handler.received()[0].request; !reflect.DeepEqual(got, want) {
 			t.Fatalf("request = %+v, want %+v", got, want)
 		}
+		var rejected messagev1.RejectedAck
+		if _, data, err := c.ReadMessage(); err != nil {
+			t.Fatalf("read malformed frame response: %v", err)
+		} else if err := json.Unmarshal(data, &rejected); err != nil || rejected.ErrorCode != messagev1.InvalidRequestErrorCode {
+			t.Fatalf("malformed response = %s, decode error = %v", data, err)
+		}
+		if _, data, err := c.ReadMessage(); err != nil {
+			t.Fatalf("read unsupported frame response: %v", err)
+		} else if err := json.Unmarshal(data, &rejected); err != nil || rejected.ErrorCode != messagev1.InvalidRequestErrorCode {
+			t.Fatalf("unsupported response = %s, decode error = %v", data, err)
+		}
+		var ack messagev1.AcceptedAck
+		if _, data, err := c.ReadMessage(); err != nil {
+			t.Fatalf("read send acknowledgement: %v", err)
+		} else if err := json.Unmarshal(data, &ack); err != nil || ack.Type != messagev1.AcceptedFrameType {
+			t.Fatalf("send acknowledgement = %s, decode error = %v", data, err)
+		}
 	})
+
 }
 
 func newTestWs(t *testing.T) *Ws {
