@@ -107,7 +107,7 @@ func runClient(ctx context.Context, endpoint, clientID string, roomIDs []string,
 				requestPending = false
 				log.Printf("message %s rejected: %s", frame.rejected.ClientMessageID, frame.rejected.ErrorCode)
 			case "event":
-				log.Printf("room %s sequence %d: %s", frame.event.RoomID, frame.event.RoomSeq, frame.event.Payload)
+				log.Printf("msg received: room %s sequence %d: %s", frame.event.RoomID, frame.event.RoomSeq, frame.event.Payload)
 			}
 		}
 		close(connectionDone)
