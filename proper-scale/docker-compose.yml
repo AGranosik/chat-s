@@ -19,7 +19,7 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 145m
+        memory: 200m
 
 
 services:
@@ -172,21 +172,29 @@ services:
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
 
-  # server2:
-  #   <<: *server
-  #   container_name: chat-server-2
+  server2:
+    <<: *server
+    container_name: chat-server-2
+    environment:
+      DIAL: chat-server-2
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
 
-  # server3:
-  #   <<: *server
-  #   container_name: chat-server-3
+  server3:
+    <<: *server
+    container_name: chat-server-3
+    environment:
+      DIAL: chat-server-3
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
 
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
     depends_on:
       - server1
-    #   - server2
-    #   - server3
+      - server2
+      - server3
     ports:
       - "80:80"
     ulimits:
