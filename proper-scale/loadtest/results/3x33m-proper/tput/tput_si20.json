@@ -1,0 +1,162 @@
+{
+    "root_group": {
+        "checks": {
+            "ws handshake 101": {
+                "id": "ea93306d778e5fa4d95326bd5ce13a44",
+                "passes": 100,
+                "fails": 0,
+                "name": "ws handshake 101",
+                "path": "::ws handshake 101"
+            }
+        },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {}
+    },
+    "metrics": {
+        "iteration_duration": {
+            "max": 208202.927771,
+            "p(90)": 190383.5974666,
+            "p(95)": 199293.06853435,
+            "avg": 119107.42942643,
+            "min": 30011.607023,
+            "med": 119106.7824335
+        },
+        "msg_e2e_latency": {
+            "avg": 4427.3464646464645,
+            "min": 95,
+            "med": 4324,
+            "max": 8833,
+            "p(90)": 8077,
+            "p(95)": 8692.549999999997,
+            "thresholds": {
+                "p(95)<5000": true,
+                "p(99)<10000": false
+            }
+        },
+        "msgs_received": {
+            "count": 990,
+            "rate": 4.713619183057241,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "msgs_rejected": {
+            "rate": 0,
+            "count": 0,
+            "thresholds": {
+                "count==0": false
+            }
+        },
+        "vus": {
+            "value": 100,
+            "min": 0,
+            "max": 100
+        },
+        "msgs_sent": {
+            "count": 100,
+            "rate": 0.4761231498037617,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "ws_errors": {
+            "count": 0,
+            "rate": 0,
+            "thresholds": {
+                "count<=5": false
+            }
+        },
+        "checks": {
+            "passes": 100,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "vus_max": {
+            "value": 100,
+            "min": 100,
+            "max": 100
+        },
+        "ws_sessions": {
+            "count": 100,
+            "rate": 0.4761231498037617
+        },
+        "ws_msgs_sent": {
+            "count": 100,
+            "rate": 0.4761231498037617
+        },
+        "msgs_accepted": {
+            "count": 100,
+            "rate": 0.4761231498037617,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "ws_connecting": {
+            "max": 33.289542,
+            "p(90)": 2.0433158000000002,
+            "p(95)": 2.1472627500000003,
+            "avg": 2.0736611599999994,
+            "min": 1.154472,
+            "med": 1.7329835,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "data_received": {
+            "count": 306823,
+            "rate": 1460.8553319223956
+        },
+        "ws_msgs_received": {
+            "rate": 5.189742332861003,
+            "count": 1090
+        },
+        "ws_session_duration": {
+            "max": 208202.632603,
+            "p(90)": 190383.44106140002,
+            "p(95)": 199292.87379885,
+            "avg": 119107.20494404007,
+            "min": 30011.376731,
+            "med": 119106.52970350001
+        },
+        "iterations": {
+            "count": 100,
+            "rate": 0.4761231498037617
+        },
+        "data_sent": {
+            "rate": 219.0071264467343,
+            "count": 45998
+        }
+    },
+    "setup_data": {
+        "rooms": [
+            "proper-1793625844722-eeooj39c-room-0",
+            "proper-1793625844722-eeooj39c-room-1",
+            "proper-1793625844722-eeooj39c-room-2",
+            "proper-1793625844722-eeooj39c-room-3",
+            "proper-1793625844722-eeooj39c-room-4",
+            "proper-1793625844722-eeooj39c-room-5",
+            "proper-1793625844722-eeooj39c-room-6",
+            "proper-1793625844722-eeooj39c-room-7",
+            "proper-1793625844722-eeooj39c-room-8",
+            "proper-1793625844722-eeooj39c-room-9"
+        ],
+        "runId": "1793625844722-eeooj39c",
+        "users": [
+            "proper-1793625844722-eeooj39c-user-0",
+            "proper-1793625844722-eeooj39c-user-1",
+            "proper-1793625844722-eeooj39c-user-2",
+            "proper-1793625844722-eeooj39c-user-3",
+            "proper-1793625844722-eeooj39c-user-4",
+            "proper-1793625844722-eeooj39c-user-5",
+            "proper-1793625844722-eeooj39c-user-6",
+            "proper-1793625844722-eeooj39c-user-7",
+            "proper-1793625844722-eeooj39c-user-8",
+            "proper-1793625844722-eeooj39c-user-9"
+        ]
+    }
+}

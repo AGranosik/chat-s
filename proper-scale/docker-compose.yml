@@ -3,9 +3,13 @@ version: "3.9"
 x-server: &server
   build:
     context: .
-    dockerfile: /services/message_service/Dockerfile
+    dockerfile: services/message_service/Dockerfile
   depends_on:
     postgres:
+      condition: service_healthy
+    presence_service:
+      condition: service_started
+    redis:
       condition: service_healthy
   expose:
     - "8080" # internal only: reachable by nginx on the compose network, never published to the host
@@ -19,7 +23,7 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 200m
+        memory: 33m
 
 
 services:
@@ -94,15 +98,13 @@ services:
   presence_service:
     build:
       context: .
-      dockerfile: /services/presence_service/Dockerfile
+      dockerfile: services/presence_service/Dockerfile
     container_name: presence_service
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
-    environment:
-      HTTP_ADDR: ":8080"
     expose:
-      - "8080" 
+      - "9090"
     restart: on-failure
     deploy:
       resources:
@@ -112,9 +114,11 @@ services:
   delivery_service:
     build:
       context: .
-      dockerfile: /services/delivery_service/Dockerfile
+      dockerfile: services/delivery_service/Dockerfile
     container_name: delivery_service
     depends_on:
+      kafka:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment: 
@@ -206,7 +210,7 @@ services:
     deploy:
       resources:
         limits:
-          # Headroom so nginx is never the wall — the 3x200m servers are the SUT.
+          # Headroom so nginx is never the wall — the 3x165m servers are the SUT.
           memory: 512m
 
 volumes:

@@ -17,5 +17,5 @@ RUN apk --no-cache add ca-certificates tzdata
 
 COPY --from=builder /app/services/presence_service .
 
-EXPOSE 8080
+EXPOSE 9090
 CMD ["./presence_service"]

@@ -18,6 +18,7 @@ The question is always the same:
 |---|----------|--------|-----------|
 | 1 | **Single instance** — one Go process, in-memory hub, no message queue | ✅ built & measured | [`single-instance/`](single-instance/) |
 | 2 | **Naive scale** — three copies of the same process behind nginx, Redis pub/sub fan-out | ✅ built & measured | [`naive-scale/`](naive-scale/) |
+| 3 | **Proper scale** — three message services with presence, Kafka, outbox relay, and Redis delivery | 🧪 load tests configured; baseline pending | [`proper-scale/`](proper-scale/) |
 
 More approaches will be added as the series grows. Each keeps the same load-test
 harness and baseline template so results stay directly comparable.
@@ -58,6 +59,19 @@ else is the single-instance code, copied.
 
 See [`naive-scale/README.md`](naive-scale/README.md) and
 [`naive-scale/loadtest/`](naive-scale/loadtest/) for the identical sweep matrix.
+
+### 3. Proper scale — split the delivery path into services
+
+The third approach separates the WebSocket message service from presence, the
+PostgreSQL outbox relay, Kafka, and Redis-backed delivery. Its k6 harness follows
+the same connection and throughput sweeps and summary columns as the first two
+approaches, with room IDs routed consistently to one message-service instance.
+The additional service budgets are recorded separately, so the comparison can
+show both delivered capacity and the extra resources used.
+
+See [`proper-scale/loadtest/README.md`](proper-scale/loadtest/README.md) for the
+runner and [`proper-scale/loadtest/BASELINE.md`](proper-scale/loadtest/BASELINE.md)
+for the result template. No proper-scale sweep results have been recorded yet.
 
 ## Conclusions so far: single-instance toughness vs naive scale
 
