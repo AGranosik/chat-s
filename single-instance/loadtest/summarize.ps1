@@ -6,9 +6,11 @@
 #   ./summarize.ps1 -Dir loadtest/results/600m/tput
 #   ./summarize.ps1 -Dir loadtest/results/1-instance/tput -Compare loadtest/results/3-instance/tput
 #
-# Per cell it reports: held sockets, room size, handshake success %, ws errors,
-# ws_connecting p95, e2e latency p50/p95, offered msg/s (sent) and delivered
-# msg/s (received), and delivery completeness % = received / (sent x room_size).
+# Per cell it reports: rooms, users per room, total clients, sent/received
+# message counts, and delivery success % = received / (sent x users per room).
+# It also includes handshake success, ws errors, latency, and message rates.
+# Throughput sends begin after ramp + settle; received messages during drain count
+# toward completeness. Rates are normalized by the send-window duration.
 #
 # Read-off rules:
 #   conn sweep -- the largest socket count with handshake% >= 99 and ws_errors
@@ -43,6 +45,11 @@ function Get-Rows([string] $d) {
     $roomsN = @($j.setup_data.rooms).Count
     $usersN = @($j.setup_data.users).Count
     $sockets = $roomsN * $usersN
+    $rampS = if ($null -ne $j.setup_data.ramp_s) { [int]$j.setup_data.ramp_s } else { $null }
+    $settleS = if ($null -ne $j.setup_data.settle_s) { [int]$j.setup_data.settle_s } else { $null }
+    $loadS = if ($null -ne $j.setup_data.duration_s) { [int]$j.setup_data.duration_s } else { $null }
+    $drainS = if ($null -ne $j.setup_data.drain_s) { [int]$j.setup_data.drain_s } else { $null }
+    $sendIntervalS = if ($null -ne $j.setup_data.send_interval_s) { [double]$j.setup_data.send_interval_s } else { $null }
 
     # Handshake check: scan root + nested groups for the '... handshake ...' check.
     $passes = 0; $fails = 0
@@ -59,9 +66,13 @@ function Get-Rows([string] $d) {
 
     $m        = $j.metrics
     $sent     = if ($m.msgs_sent)     { [double]$m.msgs_sent.count }     else { 0 }
+    $sentCount = if ($m.msgs_sent)    { [long]$m.msgs_sent.count }       else { 0 }
     $sentRate = if ($m.msgs_sent)     { [double]$m.msgs_sent.rate }      else { 0 }
     $recv     = if ($m.msgs_received) { [double]$m.msgs_received.count } else { 0 }
-    $recvRate = if ($m.msgs_received) { [double]$m.msgs_received.rate }  else { 0 }
+    $recvCount = if ($m.msgs_received) { [long]$m.msgs_received.count }   else { 0 }
+    $recvRate = if ($null -ne $loadS -and $loadS -gt 0) { $recv / $loadS } elseif ($m.msgs_received) { [double]$m.msgs_received.rate } else { 0 }
+    if ($null -ne $loadS -and $loadS -gt 0) { $sentRate = $sentCount / $loadS }
+    $expectedDeliveries = [long]($sentCount * $usersN)
     $wsErr    = if ($m.ws_errors)     { [int]$m.ws_errors.count }        else { 0 }
     $connP95  = if ($m.ws_connecting) { [math]::Round([double]$m.ws_connecting.'p(95)', 0) } else { $null }
     $e2eP50   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.med, 0) }    else { $null }
@@ -83,6 +94,12 @@ function Get-Rows([string] $d) {
 
     [pscustomobject]@{
       file          = $f.BaseName
+      rooms         = $roomsN
+      users_per_room = $usersN
+      total_clients = $sockets
+      messages_sent = $sentCount
+      messages_received = $recvCount
+      delivery_success_pct = $complete
       sockets       = $sockets
       room_size     = $usersN
       handshake_pct = $hsPct
@@ -92,6 +109,13 @@ function Get-Rows([string] $d) {
       e2e_p95_ms    = $e2eP95
       sent_per_s    = [math]::Round($sentRate, 1)
       recv_per_s    = [math]::Round($recvRate, 1)
+      mode          = $j.setup_data.mode
+      ramp_s        = $rampS
+      settle_s      = $settleS
+      load_s        = $loadS
+      drain_s       = $drainS
+      send_interval_s = $sendIntervalS
+      expected_deliveries = $expectedDeliveries
       complete_pct  = $complete
       ok            = $ok
     }
@@ -103,7 +127,7 @@ function Get-Rows([string] $d) {
 }
 
 function Show-Table($rows, [string] $title, [string] $outDir) {
-  $cols = 'file','sockets','room_size','handshake_pct','ws_errors','conn_p95_ms','e2e_p50_ms','e2e_p95_ms','sent_per_s','recv_per_s','complete_pct'
+  $cols = 'file','mode','rooms','users_per_room','total_clients','ramp_s','settle_s','load_s','drain_s','send_interval_s','messages_sent','expected_deliveries','messages_received','delivery_success_pct','handshake_pct','ws_errors','conn_p95_ms','e2e_p50_ms','e2e_p95_ms','sent_per_s','recv_per_s'
 
   $header = "| " + ($cols -join " | ") + " |"
   $sep    = "| " + (($cols | ForEach-Object { "---" }) -join " | ") + " |"

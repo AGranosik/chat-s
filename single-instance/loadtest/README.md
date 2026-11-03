@@ -17,6 +17,11 @@ backlog and most handshakes get reset, which masquerades as a server ceiling.
 
 ## Prerequisites
 
+Throughput runs do not send during connection ramp-up: they ramp, settle, send
+for `DURATION`, then count arrivals during `DRAIN` toward delivery completeness.
+This keeps early sends from being judged against room members that have not
+connected yet and prevents the final send burst from being cut off at test end.
+
 - [k6](https://k6.io/docs/get-started/installation/) on `PATH`.
 - The stack running and reachable through nginx. nginx (`http://localhost:80`) is
   the **only** published entry point — the Go server's `:8080` is internal to the
@@ -47,14 +52,16 @@ Full matrix (writes `loadtest/results/<scenario>.json`):
 | `ROOMS`         | `1`                      | number of rooms                  |
 | `USERS`         | `2`                      | users per room                   |
 | `RAMP`          | `150`                    | ramp connections up over N seconds |
+| `SETTLE`        | `5`                      | wait after ramp before sending in `tput` mode |
 | `DURATION`      | `30`                     | hold-at-full-load length, seconds |
+| `DRAIN`         | `30`                     | keep sockets open after sending stops in `tput` mode |
 | `SEND_INTERVAL` | `20`                     | one message every N seconds (fractional ok; `0` = send nothing) |
 | `MODE`          | `tput`                   | `conn` = hold sockets, send nothing; `tput` = send and measure |
 | `HTTP_BASE`     | `http://localhost:80`    | nginx entry point (`WS_BASE` derived); the server is not directly reachable |
 
-Total wall-clock per run is `RAMP + DURATION` (plus a ~15s graceful stop). The
-default `RAMP=150 / DURATION=30` gives a ~3-minute active window that ramps for
-2.5 min then holds for the last 30s. For the bigger cells raise `RAMP` further so
+Throughput wall-clock per run is `RAMP + SETTLE + DURATION + DRAIN` (plus a short
+ramp-down); connection-only mode skips settle and drain. The default
+`RAMP=150 / SETTLE=5 / DURATION=30 / DRAIN=30` takes about 3.6 minutes. For the bigger cells raise `RAMP` further so
 the per-second connect rate stays sane — e.g. 3000 sockets over the 150s ramp is
 20 conn/s; bump to `RAMP=300` for ~10 conn/s.
 

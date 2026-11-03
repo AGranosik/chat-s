@@ -46,6 +46,7 @@ services:
       resources:
         limits:
           memory: 99m
+          cpus: "0.50"
 
   nginx:
     image: nginx:1.27-alpine

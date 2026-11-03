@@ -1,11 +1,9 @@
 // k6 load test for the chat-s websocket server.
 //
 // One VU == one user == one long-lived websocket connection. Connections ramp
-// up softly (RAMP seconds) instead of all opening on the same tick, then hold
-// at full load for DURATION seconds. Each VU sends one message every
-// SEND_INTERVAL seconds and records the end-to-end delivery latency of every
-// message it receives (its own echo plus every other member's messages in the
-// same room).
+// up over RAMP seconds, settle before sending, send only during DURATION, then
+// stay open for DRAIN seconds so recipients can observe pending deliveries.
+// Each VU records delivery latency for its own echo and other room messages.
 //
 // MODE selects the limit under test (see run-limits.ps1):
 //   MODE=conn — hold sockets, send nothing; sweep the socket count to find the
@@ -19,10 +17,10 @@
 // a sustainable rate so the numbers reflect real capacity.
 //
 // Parametrized by env vars so a single script covers the whole scenario matrix
-// (see run-matrix.ps1). Peak VUs = ROOMS * USERS; total wall-clock ~= RAMP +
-// DURATION (+ a short graceful stop).
+// (see run-matrix.ps1). Peak VUs = ROOMS * USERS; throughput runs take about
+// RAMP + SETTLE + DURATION + DRAIN seconds, plus a short ramp-down.
 //
-//   k6 run -e ROOMS=10 -e USERS=5 -e RAMP=150 -e DURATION=30 chat_load.js
+//   k6 run -e ROOMS=10 -e USERS=5 -e RAMP=150 -e SETTLE=5 -e DURATION=30 -e DRAIN=30 chat_load.js
 //
 // Defaults are the smallest scenario (1 room, 2 users) so a bare `k6 run` works.
 
@@ -36,7 +34,9 @@ import { Trend, Counter } from 'k6/metrics';
 const ROOMS        = parseInt(__ENV.ROOMS          || '1', 10);    // number of rooms
 const USERS        = parseInt(__ENV.USERS          || '2', 10);    // users per room
 const RAMP_S       = parseInt(__ENV.RAMP           || '150', 10);  // ramp connections up over N seconds
+const SETTLE_S     = parseInt(__ENV.SETTLE          || '5', 10);    // wait for all room members to connect
 const DURATION_S   = parseInt(__ENV.DURATION       || '30', 10);   // hold-at-full-load length, seconds
+const DRAIN_S      = parseInt(__ENV.DRAIN          || '30', 10);   // keep sockets open while pending deliveries drain
 const SEND_EVERY_S = parseFloat(__ENV.SEND_INTERVAL || '20');      // one message / N seconds; <=0 disables sending
 const HTTP_BASE    = __ENV.HTTP_BASE || 'http://localhost:80';
 const WS_BASE      = __ENV.WS_BASE   || HTTP_BASE.replace(/^http/, 'ws');
@@ -52,7 +52,19 @@ const MODE     = (__ENV.MODE || 'tput').toLowerCase();
 const SENDING  = MODE !== 'conn' && SEND_EVERY_S > 0;
 
 const TOTAL_VUS = ROOMS * USERS;
-const ACTIVE_MS = (RAMP_S + DURATION_S) * 1000; // when the active window ends and every socket should close
+const SETTLE_PHASE_S = SENDING ? Math.max(0, SETTLE_S) : 0;
+const DRAIN_PHASE_S = SENDING ? Math.max(0, DRAIN_S) : 0;
+const SEND_START_MS = (RAMP_S + SETTLE_PHASE_S) * 1000;
+const SEND_END_MS = SEND_START_MS + DURATION_S * 1000;
+const SOCKET_CLOSE_MS = SEND_END_MS + DRAIN_PHASE_S * 1000;
+const CLOSE_BUFFER_S = 1;
+const scenarioStages = [
+  { duration: `${RAMP_S}s`, target: TOTAL_VUS },
+];
+if (SETTLE_PHASE_S > 0) scenarioStages.push({ duration: `${SETTLE_PHASE_S}s`, target: TOTAL_VUS });
+scenarioStages.push({ duration: `${DURATION_S}s`, target: TOTAL_VUS });
+if (DRAIN_PHASE_S > 0) scenarioStages.push({ duration: `${DRAIN_PHASE_S}s`, target: TOTAL_VUS });
+scenarioStages.push({ duration: `${CLOSE_BUFFER_S}s`, target: 0 });
 
 // k6 tears a few sockets down uncleanly at end-of-test, so a handful of ws_errors
 // surfaces even on a healthy step. Tolerate a budget proportional to socket count
@@ -71,11 +83,8 @@ export const options = {
     chat: {
       executor: 'ramping-vus',
       startVUs: 0,
-      stages: [
-        { duration: `${RAMP_S}s`,     target: TOTAL_VUS }, // soft ramp: open sockets gradually
-        { duration: `${DURATION_S}s`, target: TOTAL_VUS }, // hold at full load
-      ],
-      gracefulRampDown: '30s', // sockets self-close at the end of the window (see below)
+      stages: scenarioStages,
+      gracefulRampDown: '30s',
       gracefulStop:     '90s',
     },
   },
@@ -130,7 +139,16 @@ export function setup() {
   }
 
   console.log(`setup: ${rooms.length} rooms, ${users.length} users, ${TOTAL_VUS} VUs`);
-  return { rooms, users };
+  return {
+    rooms,
+    users,
+    mode: MODE,
+    ramp_s: RAMP_S,
+    settle_s: SETTLE_PHASE_S,
+    duration_s: DURATION_S,
+    drain_s: DRAIN_PHASE_S,
+    send_interval_s: SENDING ? SEND_EVERY_S : 0,
+  };
 }
 
 export default function (data) {
@@ -149,22 +167,24 @@ export default function (data) {
   const userId = data.users[idx % USERS];
   const url    = `${WS_BASE}/ws?room=${roomId}`;
 
-  // A VU opens its socket when it ramps in and holds it until the active window
-  // ends, so every connection closes together regardless of when it opened.
-  // This keeps it one long-lived socket per VU (no reconnect churn during hold)
-  // while still ramping the connection count up smoothly.
-  const remainingMs = Math.max(1000, ACTIVE_MS - exec.instance.currentTestRunDuration);
+  // Keep every socket open through the send window and drain window, then close
+  // it before k6 starts its final ramp-down.
+  const remainingMs = Math.max(1000, SOCKET_CLOSE_MS - exec.instance.currentTestRunDuration);
 
   const res = ws.connect(url, {}, function (socket) {
     socket.on('open', function () {
       if (!SENDING) return; // conn mode: just hold the socket open, send nothing
-      // Random initial offset so VUs don't all fire on the same tick.
+      const rampRemaining = Math.max(0, SEND_START_MS - exec.instance.currentTestRunDuration);
+      const firstSendDelay = rampRemaining + Math.random() * SEND_EVERY_S * 1000;
+      const sendMessage = function () {
+        if (exec.instance.currentTestRunDuration >= SEND_END_MS) return;
+        socket.send(JSON.stringify({ user_id: userId, body: `t=${Date.now()}` }));
+        msgsSent.add(1);
+      };
       socket.setTimeout(function () {
-        socket.setInterval(function () {
-          socket.send(JSON.stringify({ user_id: userId, body: `t=${Date.now()}` }));
-          msgsSent.add(1);
-        }, SEND_EVERY_S * 1000);
-      }, Math.random() * SEND_EVERY_S * 1000);
+        sendMessage();
+        socket.setInterval(sendMessage, SEND_EVERY_S * 1000);
+      }, firstSendDelay);
     });
 
     socket.on('message', function (raw) {

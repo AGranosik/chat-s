@@ -10,7 +10,9 @@ param(
   [ValidatePattern('^[a-zA-Z0-9._-]+$')]
   [string]   $Tag          = "3x33m-proper",
   [int]      $Ramp         = 180,
+  [int]      $Settle       = 5,
   [int]      $Duration     = 30,
+  [int]      $Drain        = 30,
   [string]   $HttpBase     = "http://localhost:80",
   [int]      $ReadyTimeout = 180,
   [switch]   $NativeK6,
@@ -131,7 +133,9 @@ try {
       $env:ROOMS = "$rooms"
       $env:USERS = "$usersPerRoom"
       $env:RAMP = "$Ramp"
+      $env:SETTLE = "$Settle"
       $env:DURATION = "$Duration"
+      $env:DRAIN = "$Drain"
       $env:SEND_INTERVAL = $sendString
       $env:MODE = $mode
       $env:HTTP_BASE = $HttpBase
@@ -143,7 +147,7 @@ try {
         --network $network `
         --sysctl "net.ipv4.ip_local_port_range=1024 65535" `
         --ulimit nofile=262144 `
-        -e "ROOMS=$rooms" -e "USERS=$usersPerRoom" -e "RAMP=$Ramp" -e "DURATION=$Duration" `
+        -e "ROOMS=$rooms" -e "USERS=$usersPerRoom" -e "RAMP=$Ramp" -e "SETTLE=$Settle" -e "DURATION=$Duration" -e "DRAIN=$Drain" `
         -e "SEND_INTERVAL=$sendString" -e "MODE=$mode" -e "HTTP_BASE=http://chat-nginx:80" `
         -v "${PSScriptRoot}:/scripts" `
         grafana/k6 run --summary-export $summaryInner /scripts/chat_load.js

@@ -2,7 +2,9 @@ param(
   [int[]]  $Rooms        = @(1, 10, 100, 1000),
   [int[]]  $Users        = @(2, 5, 10),
   [int]    $Ramp         = 150,
+  [int]    $Settle       = 5,
   [int]    $Duration     = 30,
+  [int]    $Drain        = 30,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80"
 )
@@ -26,7 +28,9 @@ foreach ($roomCount in $Rooms) {
     $env:ROOMS = "$roomCount"
     $env:USERS = "$userCount"
     $env:RAMP = "$Ramp"
+    $env:SETTLE = "$Settle"
     $env:DURATION = "$Duration"
+    $env:DRAIN = "$Drain"
     $env:SEND_INTERVAL = "$SendInterval"
     $env:MODE = "tput"
     $env:HTTP_BASE = $HttpBase

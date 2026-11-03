@@ -34,6 +34,7 @@ x-server: &server
     resources:
       limits:
         memory: 33m
+        cpus: "0.50"
 
 services:
   postgres:

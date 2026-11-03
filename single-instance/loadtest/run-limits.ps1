@@ -38,7 +38,9 @@ param(
 
   [string]   $Tag          = "600m",
   [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
+  [int]      $Settle       = 5,                   # let all room members connect before sending
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
+  [int]      $Drain         = 30,                 # keep sockets open for pending deliveries
 
   [string]   $HttpBase     = "http://localhost:80",
   [int]      $ReadyTimeout = 120,
@@ -146,7 +148,9 @@ foreach ($s in $Steps) {
     $env:ROOMS         = $r
     $env:USERS         = $u
     $env:RAMP          = $Ramp
+    $env:SETTLE        = $Settle
     $env:DURATION      = $Duration
+    $env:DRAIN         = $Drain
     $env:SEND_INTERVAL = $sendStr
     $env:MODE          = $mode
     $env:HTTP_BASE     = $HttpBase
@@ -160,7 +164,7 @@ foreach ($s in $Steps) {
       --network $net `
       --sysctl "net.ipv4.ip_local_port_range=1024 65535" `
       --ulimit nofile=262144 `
-      -e ROOMS=$r -e USERS=$u -e RAMP=$Ramp -e DURATION=$Duration `
+      -e ROOMS=$r -e USERS=$u -e RAMP=$Ramp -e SETTLE=$Settle -e DURATION=$Duration -e DRAIN=$Drain `
       -e SEND_INTERVAL=$sendStr -e MODE=$mode -e HTTP_BASE=http://chat-nginx:80 `
       -v "${PSScriptRoot}:/scripts" `
       grafana/k6 run --summary-export $summaryInner /scripts/chat_load.js

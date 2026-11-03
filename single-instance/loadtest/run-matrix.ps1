@@ -15,7 +15,9 @@ param(
   [int[]]  $Rooms        = @(10, 100, 100),
   [int[]]  $Users        = @(5, 10, 100),
   [int]    $Ramp         = 150,
+  [int]    $Settle       = 5,
   [int]    $Duration     = 30,
+  [int]    $Drain        = 30,
   [int]    $SendInterval = 20,
   [string] $HttpBase     = "http://localhost:80"
 )
@@ -39,7 +41,9 @@ foreach ($r in $Rooms) {
     $env:ROOMS         = $r
     $env:USERS         = $u
     $env:RAMP          = $Ramp
+    $env:SETTLE        = $Settle
     $env:DURATION      = $Duration
+    $env:DRAIN         = $Drain
     $env:SEND_INTERVAL = $SendInterval
     $env:HTTP_BASE     = $HttpBase
 

@@ -45,6 +45,11 @@ The adaptations are all in the runner and the read-off:
 
 ## Prerequisites
 
+Throughput runs do not send during connection ramp-up: they ramp, settle, send
+for `DURATION`, then count arrivals during `DRAIN` toward delivery completeness.
+This keeps early sends from being judged against room members that have not
+connected yet and prevents the final send burst from being cut off at test end.
+
 - [k6](https://k6.io/docs/get-started/installation/) on `PATH` (only needed for
   `-NativeK6`; `run-limits.ps1` uses a containerized k6 by default).
 - The stack running and reachable through nginx. nginx (`http://localhost:80`) is
@@ -75,13 +80,17 @@ Full matrix (native k6; writes `loadtest/results/<scenario>.json`):
 | `ROOMS`         | `1`                      | number of rooms                  |
 | `USERS`         | `2`                      | users per room                   |
 | `RAMP`          | `150`                    | ramp connections up over N seconds |
+| `SETTLE`        | `5`                      | wait after ramp before sending in `tput` mode |
 | `DURATION`      | `30`                     | hold-at-full-load length, seconds |
+| `DRAIN`         | `30`                     | keep sockets open after sending stops in `tput` mode |
 | `SEND_INTERVAL` | `20`                     | one message every N seconds (fractional ok; `0` = send nothing) |
 | `MODE`          | `tput`                   | `conn` = hold sockets, send nothing; `tput` = send and measure |
 | `HTTP_BASE`     | `http://localhost:80`    | nginx entry point (`WS_BASE` derived); no instance is directly reachable |
 
-Total wall-clock per run is `RAMP + DURATION` (plus a ~15 s graceful stop). The
-default `RAMP=150 / DURATION=30` ramps for 2.5 min then holds for the last 30 s.
+Throughput wall-clock per run is `RAMP + SETTLE + DURATION + DRAIN` (plus a short
+ramp-down); connection-only mode skips settle and drain. The default
+`RAMP=150 / SETTLE=5 / DURATION=30 / DRAIN=30` ramps for 2.5 min, settles, sends
+for 30 s, then leaves time for pending deliveries to arrive.
 For the bigger cells raise `RAMP` so the per-second connect rate stays sane —
 e.g. 3000 sockets over a 150 s ramp is 20 conn/s; bump to `RAMP=300` for ~10.
 
