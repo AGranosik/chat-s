@@ -12,6 +12,9 @@ The question is always the same:
 > this design sustain before latency degrades, handshakes reset, or the process
 > falls over — and what is the actual bottleneck?**
 
+For a data-derived comparison of the committed load-test artifacts, see
+[Load-test summary](LOAD_TEST_SUMMARY.md).
+
 ## The approaches
 
 | # | Approach | Status | Directory |
