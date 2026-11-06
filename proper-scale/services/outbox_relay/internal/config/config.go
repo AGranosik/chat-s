@@ -54,7 +54,7 @@ func Load() (Config, error) {
 	if cfg.RetryBackoff > 5*time.Second {
 		return Config{}, errors.New("RETRY_BACKOFF must not exceed 5s")
 	}
-	cfg.BatchSize, err = getInt("BATCH_SIZE", 100, 1, 1000)
+	cfg.BatchSize, err = getInt("BATCH_SIZE", 500, 1, 1000)
 	if err != nil {
 		return Config{}, err
 	}

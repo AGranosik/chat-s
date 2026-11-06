@@ -8,7 +8,7 @@ param(
   [int]      $Users        = 50,
   [int]      $ConnUsers    = 2,
   [ValidatePattern('^[a-zA-Z0-9._-]+$')]
-  [string]   $Tag          = "3x33m-proper",
+  [string]   $Tag          = "8x33m-proper",
   [int]      $Ramp         = 180,
   [int]      $Settle       = 5,
   [int]      $Duration     = 30,
@@ -78,7 +78,7 @@ try {
 
   if (-not (Wait-Ready $ReadyTimeout)) {
     Push-Location $repoRoot
-    try { docker compose logs --tail 80 server1 server2 server3 presence_service delivery_service outbox_relay } finally { Pop-Location }
+    try { docker compose logs --tail 80 server1 server2 server3 server4 server5 presence_service delivery_service outbox_relay } finally { Pop-Location }
     throw "proper-scale did not become ready at $HttpBase/health/ready within ${ReadyTimeout}s"
   }
 
@@ -117,7 +117,7 @@ try {
     if (-not $NoRestart) {
       Push-Location $repoRoot
       try {
-        docker compose restart server1 server2 server3
+        docker compose restart server1 server2 server3 server4 server5
         if ($LASTEXITCODE -ne 0) { throw "could not restart message-service instances" }
       } finally {
         Pop-Location

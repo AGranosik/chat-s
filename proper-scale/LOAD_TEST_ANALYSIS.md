@@ -1,6 +1,6 @@
 # Load-test analysis — proper scale
 
-**Architecture.** Three message-service replicas handle WebSockets behind nginx. Presence is a separate service; PostgreSQL outbox rows are relayed to Kafka; a delivery service consumes Kafka and uses Redis-backed delivery. This adds explicit service boundaries and asynchronous stages to the message path.
+**Architecture.** Five message-service replicas handle WebSockets behind nginx. Presence is a separate service; PostgreSQL outbox rows are relayed to Kafka; a delivery service consumes Kafka and uses Redis-backed delivery. This adds explicit service boundaries and asynchronous stages to the message path.
 
 Each k6 virtual user holds one socket and sends at the configured interval during a 30-second send window. `Delivered/s` is received frames divided by that window; completeness is received frames ÷ (sent messages × users per room). Values are from `loadtest/results/*/tput/`, measured on one machine.
 

@@ -7,6 +7,8 @@ import (
 
 	contractsv1 "github.com/AGranosik/chat/contracts"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const connTTL = 60 * time.Second
@@ -45,7 +47,13 @@ func (s *ConnectionService) Connect(ctx context.Context, req *contractsv1.Connec
 func (s *ConnectionService) Disconnect(ctx context.Context, req *contractsv1.DisconnectUserRequest) (*contractsv1.ConnectionResponse, error) {
 	clientId := req.GetClientId()
 	instanceName := req.GetInstanceName()
-	log.Printf("Disconnect client: client_id=%s", clientId)
+	log.Printf("Disconnect client: client_id=%s dial=%s", clientId, instanceName)
+
+	if clientId == "" || instanceName == "" {
+		return &contractsv1.ConnectionResponse{
+			Success: false,
+		}, status.Error(codes.InvalidArgument, "client_id and instance_name are required")
+	}
 
 	ck := clientKey(clientId, instanceName)
 	roomsId, err := s.Rdb.SMembers(ctx, ck).Result()

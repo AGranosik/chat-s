@@ -31,7 +31,7 @@ func TestProcessBatchPublishesBeforeMarking(t *testing.T) {
 	}
 	worker := newTestRelay(t, repository, publisher, 3)
 
-	if err := worker.processBatch(context.Background()); err != nil {
+	if _, err := worker.processBatch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if publisher.calls != 1 {
@@ -57,7 +57,7 @@ func TestProcessBatchRetriesPublishFailure(t *testing.T) {
 	worker := newTestRelay(t, repository, publisher, 3)
 	worker.config.RetryBackoff = time.Nanosecond
 
-	if err := worker.processBatch(context.Background()); err != nil {
+	if _, err := worker.processBatch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if publisher.calls != 3 {
@@ -78,7 +78,7 @@ func TestProcessBatchLeavesRowPendingAfterRetriesExhausted(t *testing.T) {
 	worker := newTestRelay(t, repository, publisher, 2)
 	worker.config.RetryBackoff = time.Nanosecond
 
-	if err := worker.processBatch(context.Background()); err == nil {
+	if _, err := worker.processBatch(context.Background()); err == nil {
 		t.Fatal("processBatch() error = nil, want publish failure")
 	}
 	if publisher.calls != 2 {

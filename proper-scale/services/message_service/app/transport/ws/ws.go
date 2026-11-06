@@ -157,7 +157,8 @@ func (h *Ws) disconnect(clientId string, wsConn *websocket.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	response, err := h.grpc.Disconnect(ctx, &contractsv1.DisconnectUserRequest{
-		ClientId: clientId,
+		ClientId:     clientId,
+		InstanceName: h.serviceDial,
 	})
 
 	if err != nil {

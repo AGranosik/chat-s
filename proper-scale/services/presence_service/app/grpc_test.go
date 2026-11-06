@@ -13,6 +13,8 @@ import (
 	contractsv1 "github.com/AGranosik/chat/contracts"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestService(t *testing.T) (*ConnectionService, *miniredis.Miniredis, *redis.Client) {
@@ -320,6 +322,37 @@ func TestDisconnect_OnlyAffectsTheGivenInstance(t *testing.T) {
 	}
 	if got := clientRooms(t, rdb, "c1", "inst-b"); !slices.Equal(got, []string{"r1"}) {
 		t.Fatalf("inst-b connection must be untouched, rooms = %v", got)
+	}
+}
+
+func TestDisconnect_RequiresClientAndInstance(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *contractsv1.DisconnectUserRequest
+	}{
+		{"missing instance name", &contractsv1.DisconnectUserRequest{ClientId: "c1"}},
+		{"missing client id", &contractsv1.DisconnectUserRequest{InstanceName: "inst-a"}},
+		{"both missing", &contractsv1.DisconnectUserRequest{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, mr, rdb := newTestService(t)
+			connect(t, svc, "c1", "inst-a", "r1")
+
+			resp, err := svc.Disconnect(context.Background(), tc.req)
+			if status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("error code = %v (err=%v), want %v", status.Code(err), err, codes.InvalidArgument)
+			}
+			if resp == nil || resp.GetSuccess() {
+				t.Fatalf("expected Success=false, got %v", resp)
+			}
+			if !mr.Exists("c1|inst-a") {
+				t.Fatal("existing connection must be untouched by an invalid Disconnect")
+			}
+			if _, ok := roomFields(t, rdb, "r1")["c1|inst-a"]; !ok {
+				t.Fatal("room membership must be untouched by an invalid Disconnect")
+			}
+		})
 	}
 }
 

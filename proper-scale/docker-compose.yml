@@ -147,6 +147,7 @@ services:
       DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC: messages
+      BATCH_SIZE: "500"
     restart: on-failure
     deploy:
       resources:
@@ -193,6 +194,22 @@ services:
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
 
+  server4:
+    <<: *server
+    container_name: chat-server-4
+    environment:
+      DIAL: chat-server-4
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server5:
+    <<: *server
+    container_name: chat-server-5
+    environment:
+      DIAL: chat-server-5
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -200,6 +217,8 @@ services:
       - server1
       - server2
       - server3
+      - server4
+      - server5
     ports:
       - "80:80"
     ulimits:

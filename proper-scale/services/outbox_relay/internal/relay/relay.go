@@ -64,8 +64,12 @@ func (r *Relay) Run(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return nil
 		}
-		if err := r.processBatch(ctx); err != nil && ctx.Err() == nil {
+		processed, err := r.processBatch(ctx)
+		if err != nil && ctx.Err() == nil {
 			r.logger.Error("outbox relay cycle failed", "error", err)
+		}
+		if processed > 0 && err == nil {
+			continue
 		}
 
 		timer := time.NewTimer(r.config.PollInterval)
@@ -78,15 +82,15 @@ func (r *Relay) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Relay) processBatch(ctx context.Context) error {
+func (r *Relay) processBatch(ctx context.Context) (int, error) {
 	entries, err := r.repository.NextPending(ctx, r.config.BatchSize)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var batchErr error
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
-			return err
+			return len(entries), err
 		}
 		if err := validateEntry(entry); err != nil {
 			r.logger.Error("invalid outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
@@ -106,7 +110,7 @@ func (r *Relay) processBatch(ctx context.Context) error {
 		}
 		r.logger.Info("published outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "partition", partition, "offset", offset)
 	}
-	return batchErr
+	return len(entries), batchErr
 }
 
 func (r *Relay) publishWithRetry(ctx context.Context, entry postgres.Entry) (int32, int64, error) {

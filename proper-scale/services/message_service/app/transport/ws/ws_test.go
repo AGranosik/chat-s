@@ -270,6 +270,9 @@ func TestGrpc(t *testing.T) {
 			if req.ClientId != "42" {
 				t.Errorf("client id = %q, want %q", req.ClientId, "42")
 			}
+			if req.InstanceName != testDial {
+				t.Errorf("instance name = %q, want %q", req.InstanceName, testDial)
+			}
 		case <-time.After(waitTimeout):
 			t.Fatal("grpc disconnect was not called")
 		}
