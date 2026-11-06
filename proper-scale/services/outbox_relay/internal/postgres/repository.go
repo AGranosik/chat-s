@@ -44,17 +44,10 @@ func (r *Repository) Ping(ctx context.Context) error {
 
 func (r *Repository) NextPending(ctx context.Context, limit int) ([]Entry, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT pending.message_id::text, pending.room_id, pending.room_seq, pending.event
-		FROM message_outbox AS pending
-		WHERE pending.published_at IS NULL
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM message_outbox AS previous
-			WHERE previous.room_id = pending.room_id
-			  AND previous.published_at IS NULL
-			  AND previous.room_seq < pending.room_seq
-		  )
-		ORDER BY pending.created_at ASC, pending.room_id ASC, pending.room_seq ASC
+		SELECT message_id::text, room_id, room_seq, event
+		FROM message_outbox
+		WHERE published_at IS NULL
+		ORDER BY outbox_id
 		LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query pending outbox rows: %w", err)

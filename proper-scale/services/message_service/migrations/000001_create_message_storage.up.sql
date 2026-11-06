@@ -17,6 +17,7 @@ CREATE TABLE messages (
 );
 
 CREATE TABLE message_outbox (
+    outbox_id BIGINT GENERATED ALWAYS AS IDENTITY,
     message_id UUID PRIMARY KEY REFERENCES messages(message_id),
     room_id TEXT NOT NULL,
     room_seq BIGINT NOT NULL,
@@ -31,6 +32,6 @@ CREATE TABLE message_outbox (
         REFERENCES messages(room_id, room_seq)
 );
 
-CREATE INDEX message_outbox_pending_room_sequence_idx
-    ON message_outbox (room_id, room_seq)
+CREATE INDEX message_outbox_pending_idx
+    ON message_outbox (outbox_id)
     WHERE published_at IS NULL;

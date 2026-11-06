@@ -87,10 +87,6 @@ func (c *Consumer) Run(ctx context.Context) error {
 				log.Printf("redis: decode room event on %q: %v", c.channel, err)
 				continue
 			}
-			if event.RoomID != string(m.Key) {
-				log.Printf("redis: room key %q does not match event room %q", string(m.Key), event.RoomID)
-				continue
-			}
 
 			if err := c.messageDisppatcher.Dispatch(ctx, event); err != nil {
 				log.Printf("redis: handle message on %q: %v", c.channel, err)

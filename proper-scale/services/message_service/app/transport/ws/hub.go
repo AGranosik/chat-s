@@ -61,9 +61,6 @@ func (h *Hub) Unregister(clientID string) error {
 }
 
 func (h *Hub) Dispatch(ctx context.Context, m chat.Message) error {
-	if err := m.Validate(); err != nil {
-		return fmt.Errorf("invalid message event: %w", err)
-	}
 	serialized, err := json.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("marshal message event: %w", err)

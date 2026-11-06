@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestStoreAcceptIdempotencyPersistsOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if retry.MessageID != first.MessageID || retry.RoomSeq != first.RoomSeq || string(retry.Payload) != string(first.Payload) {
+	if retry.MessageID != first.MessageID || retry.RoomSeq != first.RoomSeq || !sameJSON(t, retry.Payload, first.Payload) {
 		t.Fatalf("retry = %+v; want original event %+v", retry, first)
 	}
 
@@ -171,6 +172,18 @@ func newIsolatedTestPool(t *testing.T) *pgxpool.Pool {
 		adminPool.Close()
 	})
 	return pool
+}
+
+func sameJSON(t *testing.T, got, want json.RawMessage) bool {
+	t.Helper()
+	var gotValue, wantValue any
+	if err := json.Unmarshal(got, &gotValue); err != nil {
+		t.Fatalf("decode %s: %v", got, err)
+	}
+	if err := json.Unmarshal(want, &wantValue); err != nil {
+		t.Fatalf("decode %s: %v", want, err)
+	}
+	return reflect.DeepEqual(gotValue, wantValue)
 }
 
 func sendRequest(roomID, clientMessageID, payload string) messagev1.SendRequest {

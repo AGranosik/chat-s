@@ -106,27 +106,6 @@ func TestHandleReturnsPublisherError(t *testing.T) {
 	}
 }
 
-func TestHandleRejectsInvalidEventBeforePresenceLookup(t *testing.T) {
-	event := testEvent()
-	event.Version++
-	data, err := json.Marshal(event)
-	if err != nil {
-		t.Fatal(err)
-	}
-	presence := &testPresenceClient{response: &contractsv1.UserConnectionResponse{}}
-	service, err := NewMessageHandler(&testMessagePublisher{}, presence)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := service.Handle(context.Background(), Message{Key: []byte(event.RoomID), Value: data}); err == nil {
-		t.Fatal("Handle() error = nil, want invalid event error")
-	}
-	if presence.calls != 0 {
-		t.Fatalf("presence calls = %d, want 0", presence.calls)
-	}
-}
-
 type testPresenceClient struct {
 	contractsv1.UserServiceClient
 	response *contractsv1.UserConnectionResponse

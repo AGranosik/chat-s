@@ -2,13 +2,11 @@ package relay
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	messagev1 "github.com/AGranosik/chat/contracts/messages"
 	"outbox_relay/internal/kafka"
 	"outbox_relay/internal/postgres"
 )
@@ -91,9 +89,7 @@ func (r *Relay) processBatch(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	valid, batchErr := r.validEntries(entries)
-	published, err := r.publishWithRetry(ctx, valid)
-	batchErr = errors.Join(batchErr, err)
+	published, batchErr := r.publishWithRetry(ctx, entries)
 
 	if len(published) > 0 {
 		ids := make([]string, len(published))
@@ -108,25 +104,6 @@ func (r *Relay) processBatch(ctx context.Context) (int, error) {
 
 	r.logger.Info("published outbox batch", "fetched", len(entries), "published", len(published))
 	return len(entries), batchErr
-}
-
-func (r *Relay) validEntries(entries []postgres.Entry) ([]postgres.Entry, error) {
-	valid := make([]postgres.Entry, 0, len(entries))
-	blockedRooms := make(map[string]struct{})
-	var invalidErr error
-	for _, entry := range entries {
-		if _, blocked := blockedRooms[entry.RoomID]; blocked {
-			continue
-		}
-		if err := validateEntry(entry); err != nil {
-			r.logger.Error("invalid outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
-			blockedRooms[entry.RoomID] = struct{}{}
-			invalidErr = errors.Join(invalidErr, err)
-			continue
-		}
-		valid = append(valid, entry)
-	}
-	return valid, invalidErr
 }
 
 func (r *Relay) publishWithRetry(ctx context.Context, entries []postgres.Entry) ([]postgres.Entry, error) {
@@ -195,18 +172,4 @@ func toMessages(entries []postgres.Entry) []kafka.Message {
 		messages[i] = kafka.Message{Key: entry.RoomID, Value: entry.Event}
 	}
 	return messages
-}
-
-func validateEntry(entry postgres.Entry) error {
-	var event messagev1.Event
-	if err := json.Unmarshal(entry.Event, &event); err != nil {
-		return fmt.Errorf("decode event: %w", err)
-	}
-	if err := event.Validate(); err != nil {
-		return fmt.Errorf("validate event: %w", err)
-	}
-	if event.MessageID != entry.MessageID || event.RoomID != entry.RoomID || event.RoomSeq != entry.RoomSeq {
-		return errors.New("event fields do not match outbox row")
-	}
-	return nil
 }

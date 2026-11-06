@@ -45,12 +45,6 @@ func (s *MessageService) Handle(ctx context.Context, m Message) error {
 	if err := json.Unmarshal(m.Value, &event); err != nil {
 		return fmt.Errorf("decode v1 message event: %w", err)
 	}
-	if err := event.Validate(); err != nil {
-		return fmt.Errorf("validate v1 message event: %w", err)
-	}
-	if string(m.Key) != event.RoomID {
-		return fmt.Errorf("Kafka room key %q does not match event room %q", string(m.Key), event.RoomID)
-	}
 
 	res, err := s.grpc.IsConnected(ctx, &contractsv1.ClientsConnectionDestRequest{
 		RoomId: event.RoomID,

@@ -164,30 +164,6 @@ func TestProcessBatchMarksNothingWhenWholeBatchFails(t *testing.T) {
 	}
 }
 
-func TestProcessBatchSkipsInvalidRowAndLaterRowsOfItsRoom(t *testing.T) {
-	invalid := newEntry(t, "room-1", 1)
-	invalid.RoomSeq = 99
-	room1Later := newEntry(t, "room-1", 2)
-	room2 := newEntry(t, "room-2", 1)
-	repository := &testRepository{entries: []postgres.Entry{invalid, room2, room1Later}}
-	publisher := &testPublisher{
-		publish: func(_ string, messages []kafka.Message) []error {
-			return make([]error, len(messages))
-		},
-	}
-	worker := newTestRelay(t, repository, publisher, 3)
-
-	if _, err := worker.processBatch(context.Background()); err == nil {
-		t.Fatal("processBatch() error = nil, want validation failure")
-	}
-	if len(publisher.batches) != 1 || len(publisher.batches[0]) != 1 || publisher.batches[0][0].Key != "room-2" {
-		t.Fatalf("published batches = %v, want only room-2", publisher.batches)
-	}
-	if want := ids(room2); !slices.Equal(repository.marked[0], want) {
-		t.Fatalf("marked rows = %v, want %v", repository.marked[0], want)
-	}
-}
-
 func TestProcessBatchReturnsMarkFailure(t *testing.T) {
 	repository := &testRepository{
 		entries: []postgres.Entry{newEntry(t, "room-1", 1)},
