@@ -75,16 +75,19 @@ func (r *Repository) NextPending(ctx context.Context, limit int) ([]Entry, error
 	return entries, nil
 }
 
-func (r *Repository) MarkPublished(ctx context.Context, messageID string) error {
+func (r *Repository) MarkPublished(ctx context.Context, messageIDs []string) error {
+	if len(messageIDs) == 0 {
+		return nil
+	}
 	result, err := r.pool.Exec(ctx, `
 		UPDATE message_outbox
 		SET published_at = NOW()
-		WHERE message_id = $1::uuid AND published_at IS NULL`, messageID)
+		WHERE message_id = ANY($1::text[]::uuid[]) AND published_at IS NULL`, messageIDs)
 	if err != nil {
-		return fmt.Errorf("mark outbox row published: %w", err)
+		return fmt.Errorf("mark outbox rows published: %w", err)
 	}
-	if result.RowsAffected() != 1 {
-		return fmt.Errorf("mark outbox row %s published: row was no longer pending", messageID)
+	if result.RowsAffected() != int64(len(messageIDs)) {
+		return fmt.Errorf("mark outbox rows published: %d of %d rows were still pending", result.RowsAffected(), len(messageIDs))
 	}
 	return nil
 }

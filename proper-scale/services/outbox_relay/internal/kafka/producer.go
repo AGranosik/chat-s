@@ -9,8 +9,13 @@ import (
 	"github.com/IBM/sarama"
 )
 
+type Message struct {
+	Key   string
+	Value []byte
+}
+
 type Publisher interface {
-	Publish(context.Context, string, string, []byte) (int32, int64, error)
+	PublishBatch(ctx context.Context, topic string, messages []Message) []error
 }
 
 type Producer struct {
@@ -41,22 +46,55 @@ func NewProducer(brokers []string) (*Producer, error) {
 	return &Producer{producer: producer}, nil
 }
 
-func (p *Producer) Publish(ctx context.Context, topic, roomID string, event []byte) (int32, int64, error) {
+func (p *Producer) PublishBatch(ctx context.Context, topic string, messages []Message) []error {
+	results := make([]error, len(messages))
+	if len(messages) == 0 {
+		return results
+	}
 	if err := ctx.Err(); err != nil {
-		return 0, 0, err
+		return fillErrors(results, err)
 	}
-	message := &sarama.ProducerMessage{
-		Topic: topic,
-		Key:   sarama.StringEncoder(roomID),
-		Value: sarama.ByteEncoder(event),
+
+	batch := make([]*sarama.ProducerMessage, len(messages))
+	indexes := make(map[*sarama.ProducerMessage]int, len(messages))
+	for i, message := range messages {
+		producerMessage := &sarama.ProducerMessage{
+			Topic: topic,
+			Key:   sarama.StringEncoder(message.Key),
+			Value: sarama.ByteEncoder(message.Value),
+		}
+		batch[i] = producerMessage
+		indexes[producerMessage] = i
 	}
-	partition, offset, err := p.producer.SendMessage(message)
-	if err != nil {
-		return 0, 0, fmt.Errorf("send Kafka message: %w", err)
+
+	err := p.producer.SendMessages(batch)
+	if err == nil {
+		return results
 	}
-	return partition, offset, nil
+	var producerErrors sarama.ProducerErrors
+	if !errors.As(err, &producerErrors) {
+		return fillErrors(results, fmt.Errorf("send Kafka batch: %w", err))
+	}
+	matched := false
+	for _, producerError := range producerErrors {
+		if i, ok := indexes[producerError.Msg]; ok {
+			results[i] = fmt.Errorf("send Kafka message: %w", producerError.Err)
+			matched = true
+		}
+	}
+	if !matched {
+		return fillErrors(results, fmt.Errorf("send Kafka batch: %w", err))
+	}
+	return results
 }
 
 func (p *Producer) Close() error {
 	return p.producer.Close()
+}
+
+func fillErrors(results []error, err error) []error {
+	for i := range results {
+		results[i] = err
+	}
+	return results
 }

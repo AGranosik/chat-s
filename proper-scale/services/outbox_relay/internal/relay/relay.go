@@ -15,7 +15,7 @@ import (
 
 type Repository interface {
 	NextPending(context.Context, int) ([]postgres.Entry, error)
-	MarkPublished(context.Context, string) error
+	MarkPublished(context.Context, []string) error
 }
 
 type Config struct {
@@ -87,56 +87,114 @@ func (r *Relay) processBatch(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	var batchErr error
-	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return len(entries), err
-		}
-		if err := validateEntry(entry); err != nil {
-			r.logger.Error("invalid outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
-			batchErr = errors.Join(batchErr, err)
-			continue
-		}
-		partition, offset, err := r.publishWithRetry(ctx, entry)
-		if err != nil {
-			r.logger.Error("outbox publish failed", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
-			batchErr = errors.Join(batchErr, err)
-			continue
-		}
-		if err := r.repository.MarkPublished(ctx, entry.MessageID); err != nil {
-			r.logger.Error("outbox row could not be marked published", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
-			batchErr = errors.Join(batchErr, err)
-			continue
-		}
-		r.logger.Info("published outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "partition", partition, "offset", offset)
+	if len(entries) == 0 {
+		return 0, nil
 	}
+
+	valid, batchErr := r.validEntries(entries)
+	published, err := r.publishWithRetry(ctx, valid)
+	batchErr = errors.Join(batchErr, err)
+
+	if len(published) > 0 {
+		ids := make([]string, len(published))
+		for i, entry := range published {
+			ids[i] = entry.MessageID
+		}
+		if err := r.repository.MarkPublished(ctx, ids); err != nil {
+			r.logger.Error("outbox rows could not be marked published", "count", len(ids), "error", err)
+			return len(entries), errors.Join(batchErr, err)
+		}
+	}
+
+	r.logger.Info("published outbox batch", "fetched", len(entries), "published", len(published))
 	return len(entries), batchErr
 }
 
-func (r *Relay) publishWithRetry(ctx context.Context, entry postgres.Entry) (int32, int64, error) {
-	var lastErr error
-	for attempt := 1; attempt <= r.config.MaxRetries; attempt++ {
-		partition, offset, err := r.publisher.Publish(ctx, r.config.Topic, entry.RoomID, entry.Event)
-		if err == nil {
-			return partition, offset, nil
+func (r *Relay) validEntries(entries []postgres.Entry) ([]postgres.Entry, error) {
+	valid := make([]postgres.Entry, 0, len(entries))
+	blockedRooms := make(map[string]struct{})
+	var invalidErr error
+	for _, entry := range entries {
+		if _, blocked := blockedRooms[entry.RoomID]; blocked {
+			continue
 		}
-		lastErr = err
+		if err := validateEntry(entry); err != nil {
+			r.logger.Error("invalid outbox event", "message_id", entry.MessageID, "room_id", entry.RoomID, "room_seq", entry.RoomSeq, "error", err)
+			blockedRooms[entry.RoomID] = struct{}{}
+			invalidErr = errors.Join(invalidErr, err)
+			continue
+		}
+		valid = append(valid, entry)
+	}
+	return valid, invalidErr
+}
+
+func (r *Relay) publishWithRetry(ctx context.Context, entries []postgres.Entry) ([]postgres.Entry, error) {
+	published := make([]postgres.Entry, 0, len(entries))
+	remaining := entries
+	var lastErr error
+	for attempt := 1; len(remaining) > 0; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return published, err
+		}
+		results := r.publisher.PublishBatch(ctx, r.config.Topic, toMessages(remaining))
+		var succeeded []postgres.Entry
+		succeeded, remaining, lastErr = splitResults(remaining, results)
+		published = append(published, succeeded...)
+		if len(remaining) == 0 {
+			return published, nil
+		}
+		r.logger.Warn("outbox publish attempt failed", "attempt", attempt, "pending", len(remaining), "error", lastErr)
 		if attempt == r.config.MaxRetries {
 			break
 		}
-		delay := r.config.RetryBackoff * time.Duration(1<<(attempt-1))
-		if delay > 5*time.Second {
-			delay = 5 * time.Second
-		}
+		delay := min(r.config.RetryBackoff*time.Duration(1<<(attempt-1)), 5*time.Second)
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return 0, 0, ctx.Err()
+			return published, ctx.Err()
 		case <-timer.C:
 		}
 	}
-	return 0, 0, fmt.Errorf("Kafka publish failed after %d attempts: %w", r.config.MaxRetries, lastErr)
+	return published, fmt.Errorf("Kafka publish failed for %d outbox rows after %d attempts: %w", len(remaining), r.config.MaxRetries, lastErr)
+}
+
+func splitResults(entries []postgres.Entry, results []error) ([]postgres.Entry, []postgres.Entry, error) {
+	succeeded := make([]postgres.Entry, 0, len(entries))
+	var retry []postgres.Entry
+	failedRooms := make(map[string]struct{})
+	var firstErr error
+	for i, entry := range entries {
+		var err error
+		if i < len(results) {
+			err = results[i]
+		} else {
+			err = errors.New("publisher returned no result")
+		}
+		if err != nil {
+			failedRooms[entry.RoomID] = struct{}{}
+			retry = append(retry, entry)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if _, failed := failedRooms[entry.RoomID]; failed {
+			retry = append(retry, entry)
+			continue
+		}
+		succeeded = append(succeeded, entry)
+	}
+	return succeeded, retry, firstErr
+}
+
+func toMessages(entries []postgres.Entry) []kafka.Message {
+	messages := make([]kafka.Message, len(entries))
+	for i, entry := range entries {
+		messages[i] = kafka.Message{Key: entry.RoomID, Value: entry.Event}
+	}
+	return messages
 }
 
 func validateEntry(entry postgres.Entry) error {
