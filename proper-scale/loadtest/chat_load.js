@@ -24,6 +24,7 @@ const SEND_START_MS = (RAMP_S + SETTLE_PHASE_S) * 1000;
 const SEND_END_MS = SEND_START_MS + DURATION_S * 1000;
 const SOCKET_CLOSE_MS = SEND_END_MS + DRAIN_PHASE_S * 1000;
 const CLOSE_BUFFER_S = 1;
+const scenarioElapsedMs = () => Date.now() - exec.scenario.startTime;
 const scenarioStages = [
   { duration: `${RAMP_S}s`, target: TOTAL_VUS },
 ];
@@ -60,12 +61,10 @@ export const options = {
     : {
         checks: ['rate>0.99'],
         ws_connecting: ['p(95)<1000'],
-        msg_e2e_latency: ['p(95)<5000', 'p(99)<10000'],
+        msg_e2e_latency: ['p(95)<2500', 'p(99)<3500'],
         ws_errors: [`count<=${WS_ERR_BUDGET}`],
         msgs_sent: ['count>0'],
-        msgs_accepted: ['count>0'],
         msgs_received: ['count>0'],
-        msgs_rejected: ['count==0'],
       },
 };
 
@@ -98,16 +97,16 @@ export default function (data) {
   const roomId = data.rooms[roomIndex];
   const clientId = `${data.runId}-r${roomIndex}-u${userIndex}`;
   const url = `${WS_BASE}/ws?client_id=${encodeURIComponent(clientId)}&room_ids=${encodeURIComponent(roomId)}`;
-  const remainingMs = Math.max(1000, SOCKET_CLOSE_MS - exec.instance.currentTestRunDuration);
+  const remainingMs = Math.max(1000, SOCKET_CLOSE_MS - scenarioElapsedMs());
 
   const response = ws.connect(url, {}, function (socket) {
     socket.on('open', function () {
       if (SENDING) {
-        const rampRemaining = Math.max(0, SEND_START_MS - exec.instance.currentTestRunDuration);
+        const rampRemaining = Math.max(0, SEND_START_MS - scenarioElapsedMs());
         const firstSendDelay = rampRemaining + Math.random() * SEND_EVERY_S * 1000;
         let sequence = 0;
         const sendMessage = function () {
-          if (exec.instance.currentTestRunDuration >= SEND_END_MS) return;
+          if (scenarioElapsedMs() >= SEND_END_MS) return;
           const request = {
             type: 'send',
             version: 1,

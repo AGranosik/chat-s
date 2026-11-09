@@ -34,8 +34,8 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 33m
-        cpus: "0.50"
+        memory: 87m
+        cpus: "0.80"
 
 services:
   postgres:
@@ -58,6 +58,7 @@ services:
           # Fixed DB budget so Postgres doesn't eat host RAM and mask the
           # servers' own memory wall.
           memory: 600m
+          cpus: "2.00"
 
   redis:
     image: redis:7-alpine
@@ -74,6 +75,7 @@ services:
       resources:
         limits:
           memory: 200m
+          cpus: "1.00"
 
   server1:
     <<: *server
@@ -107,6 +109,14 @@ services:
     <<: *server
     container_name: chat-server-8
 
+  server9:
+    <<: *server
+    container_name: chat-server-9
+
+  server10:
+    <<: *server
+    container_name: chat-server-10
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -119,6 +129,8 @@ services:
       - server6
       - server7
       - server8
+      - server9
+      - server10
     ports:
       - "80:80"
     ulimits:
@@ -132,3 +144,4 @@ services:
         limits:
           # Headroom so nginx is never the wall — the 8x33m servers are the SUT.
           memory: 512m
+          cpus: "1.00"

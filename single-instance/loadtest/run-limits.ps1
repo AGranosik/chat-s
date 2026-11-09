@@ -36,7 +36,7 @@ param(
   [int]      $Users        = 50,                  # tput only: users per room (Rooms*Users = held sockets)
   [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
 
-  [string]   $Tag          = "600m",
+  [string]   $Tag          = "870m",
   [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
   [int]      $Settle       = 5,                   # let all room members connect before sending
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
@@ -84,7 +84,7 @@ function Wait-Healthy([int] $TimeoutSec) {
 }
 
 # ---- Clean stack -----------------------------------------------------------
-Write-Host "=== recreating a clean stack (600m server budget; wipes existing DB) ===" -ForegroundColor Cyan
+Write-Host "=== recreating a clean stack (870m / 8 CPU server budget; wipes existing DB) ===" -ForegroundColor Cyan
 Push-Location $repoRoot
 try {
   docker compose down --remove-orphans

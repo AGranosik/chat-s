@@ -8,7 +8,7 @@ param(
   [int]      $Users        = 50,
   [int]      $ConnUsers    = 2,
   [ValidatePattern('^[a-zA-Z0-9._-]+$')]
-  [string]   $Tag          = "8x33m-proper",
+  [string]   $Tag          = "10x33m-proper",
   [int]      $Ramp         = 180,
   [int]      $Settle       = 5,
   [int]      $Duration     = 30,
@@ -117,8 +117,8 @@ try {
     if (-not $NoRestart) {
       Push-Location $repoRoot
       try {
-        docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 server9 server10
-        if ($LASTEXITCODE -ne 0) { throw "could not restart message-service instances" }
+        docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 presence_service delivery_service delivery_service_1 outbox_relay outbox_relay_1 outbox_relay_2
+        if ($LASTEXITCODE -ne 0) { throw "could not restart Go services" }
       } finally {
         Pop-Location
       }

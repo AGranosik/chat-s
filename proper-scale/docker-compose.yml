@@ -49,6 +49,7 @@ services:
       resources:
         limits:
           memory: 600m
+          cpus: "2.00"
   kafka:
     image: apache/kafka:4.2.0
     container_name: kafka
@@ -87,10 +88,16 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+          cpus: "1.00"
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
+    profiles: ["tools"]
     ports:
       - "8080:8080"
     environment:
@@ -114,6 +121,7 @@ services:
       resources:
         limits:
           memory: 80m
+          cpus: "0.50"
         
   delivery_service:
     build:
@@ -135,6 +143,7 @@ services:
       resources:
         limits:
           memory: 80m
+          cpus: "0.50"
 
   delivery_service_1:
     build:
@@ -156,6 +165,7 @@ services:
       resources:
         limits:
           memory: 80m
+          cpus: "0.50"
 
   outbox_relay:
     build:
@@ -181,6 +191,7 @@ services:
       resources:
         limits:
           memory: 100m
+          cpus: "0.50"
 
   outbox_relay_1:
     build:
@@ -206,6 +217,7 @@ services:
       resources:
         limits:
           memory: 100m
+          cpus: "0.50"
 
   outbox_relay_2:
     build:
@@ -231,6 +243,7 @@ services:
       resources:
         limits:
           memory: 100m
+          cpus: "0.50"
 
   redis:
     image: redis:7-alpine
@@ -247,6 +260,7 @@ services:
       resources:
         limits:
           memory: 200m
+          cpus: "1.00"
 
   server1:
     <<: *server
@@ -365,6 +379,7 @@ services:
         limits:
           # Headroom so nginx is never the wall — the 3x165m servers are the SUT.
           memory: 512m
+          cpus: "1.00"
 
 volumes:
   kafka-data:

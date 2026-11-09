@@ -58,6 +58,7 @@ const SEND_START_MS = (RAMP_S + SETTLE_PHASE_S) * 1000;
 const SEND_END_MS = SEND_START_MS + DURATION_S * 1000;
 const SOCKET_CLOSE_MS = SEND_END_MS + DRAIN_PHASE_S * 1000;
 const CLOSE_BUFFER_S = 1;
+const scenarioElapsedMs = () => Date.now() - exec.scenario.startTime;
 const scenarioStages = [
   { duration: `${RAMP_S}s`, target: TOTAL_VUS },
 ];
@@ -169,15 +170,15 @@ export default function (data) {
 
   // Keep every socket open through the send window and drain window, then close
   // it before k6 starts its final ramp-down.
-  const remainingMs = Math.max(1000, SOCKET_CLOSE_MS - exec.instance.currentTestRunDuration);
+  const remainingMs = Math.max(1000, SOCKET_CLOSE_MS - scenarioElapsedMs());
 
   const res = ws.connect(url, {}, function (socket) {
     socket.on('open', function () {
       if (!SENDING) return; // conn mode: just hold the socket open, send nothing
-      const rampRemaining = Math.max(0, SEND_START_MS - exec.instance.currentTestRunDuration);
+      const rampRemaining = Math.max(0, SEND_START_MS - scenarioElapsedMs());
       const firstSendDelay = rampRemaining + Math.random() * SEND_EVERY_S * 1000;
       const sendMessage = function () {
-        if (exec.instance.currentTestRunDuration >= SEND_END_MS) return;
+        if (scenarioElapsedMs() >= SEND_END_MS) return;
         socket.send(JSON.stringify({ user_id: userId, body: `t=${Date.now()}` }));
         msgsSent.add(1);
       };

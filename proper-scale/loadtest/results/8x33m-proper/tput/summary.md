@@ -1,6 +1,0 @@
-﻿| file | mode | rooms | users_per_room | total_clients | ramp_s | settle_s | load_s | drain_s | send_interval_s | messages_sent | expected_deliveries | messages_received | delivery_success_pct | handshake_pct | ws_errors | conn_p90_ms | conn_p95_ms | e2e_p50_ms | e2e_p95_ms | messages_accepted | sent_per_s | recv_per_s |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| tput_si4 | tput | 400 | 10 | 4000 | 180 | 5 | 30 | 30 | 4 | 29843 | 298430 | 298430 | 100 | 100 | 0 | 2 | 2 | 816 | 1587 | 29843 | 994.8 | 9947.7 |
-| tput_si3 | tput | 400 | 10 | 4000 | 180 | 5 | 30 | 30 | 3 | 39679 | 396790 | 396790 | 100 | 100 | 3 | 2 | 2 | 3802 | 13257 | 39679 | 1322.6 | 13226.3 |
-| tput_si2 | tput | 400 | 10 | 4000 | 180 | 5 | 30 | 30 | 2 | 56984 | 569840 | 569840 | 100 | 100 | 3 | 2 | 2 | 21522 | 26717 | 56984 | 1899.5 | 18994.7 |
-| tput_si1 | tput | 400 | 10 | 4000 | 180 | 5 | 30 | 30 | 1 | 98504 | 985040 | 427243 | 43.4 | 100 | 13 | 2 | 2 | 31706 | 46592 | 42976 | 3283.5 | 14241.4 |

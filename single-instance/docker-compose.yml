@@ -21,6 +21,7 @@ services:
           # Fixed budget under test, same as the server: keeps Postgres from
           # eating host RAM and masking the server's own 600m wall.
           memory: 600m
+          cpus: "2.00"
 
   server:
     build:
@@ -45,8 +46,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 99m
-          cpus: "0.50"
+          memory: 870m
+          cpus: "8.00"
 
   nginx:
     image: nginx:1.27-alpine
@@ -66,3 +67,4 @@ services:
         limits:
           # Headroom so nginx is never the wall — the 600m server is the SUT.
           memory: 512m
+          cpus: "1.00"
