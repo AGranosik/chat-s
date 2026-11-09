@@ -320,6 +320,24 @@ services:
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
 
+  server9:
+    <<: *server
+    container_name: chat-server-9
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-9
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server10:
+    <<: *server
+    container_name: chat-server-10
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-10
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -332,6 +350,8 @@ services:
       - server6
       - server7
       - server8
+      - server9
+      - server10
     ports:
       - "80:80"
     ulimits:

@@ -78,7 +78,7 @@ try {
 
   if (-not (Wait-Ready $ReadyTimeout)) {
     Push-Location $repoRoot
-    try { docker compose logs --tail 80 server1 server2 server3 server4 server5 presence_service delivery_service outbox_relay } finally { Pop-Location }
+    try { docker compose logs --tail 80 server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 presence_service delivery_service outbox_relay } finally { Pop-Location }
     throw "proper-scale did not become ready at $HttpBase/health/ready within ${ReadyTimeout}s"
   }
 
@@ -117,7 +117,7 @@ try {
     if (-not $NoRestart) {
       Push-Location $repoRoot
       try {
-        docker compose restart server1 server2 server3 server4 server5
+        docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 server9 server10
         if ($LASTEXITCODE -ne 0) { throw "could not restart message-service instances" }
       } finally {
         Pop-Location
