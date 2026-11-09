@@ -40,6 +40,7 @@ type Ws struct {
 	hub         *Hub
 	serviceDial string
 	ingest      IngestHandler
+	readTimeout time.Duration
 }
 
 func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string, i IngestHandler) (*Ws, error) {
@@ -58,6 +59,7 @@ func NewWs(grpc contractsv1.UserServiceClient, hub *Hub, serviceDial string, i I
 		hub:         hub,
 		serviceDial: serviceDial,
 		ingest:      i,
+		readTimeout: pongWait,
 	}, nil
 }
 
@@ -105,6 +107,10 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		if err := h.extendReadDeadline(conn); err != nil {
+			slog.Warn("extend read deadline failed", "err", err)
+			return
+		}
 
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
 			continue // ignore ping/pong/close control frames here, gorilla handles them
@@ -124,10 +130,12 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 		return nil, err
 	}
 	conn.SetReadLimit(maxMessageBytes)
-	conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err := h.extendReadDeadline(conn); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
+		return h.extendReadDeadline(conn)
 	})
 
 	response, err := h.grpc.Connect(ctx, &contractsv1.ConnectUserRequest{
@@ -147,6 +155,10 @@ func (h *Ws) configureConnection(w http.ResponseWriter, r *http.Request, ctx con
 	}
 
 	return conn, err
+}
+
+func (h *Ws) extendReadDeadline(conn *websocket.Conn) error {
+	return conn.SetReadDeadline(time.Now().Add(h.readTimeout))
 }
 
 func (h *Ws) disconnect(clientId string, wsConn *websocket.Conn) {

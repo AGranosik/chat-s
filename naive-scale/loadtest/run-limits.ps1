@@ -1,8 +1,8 @@
 # Limit-finding sweep runner for the naive-scale chat-s stack.
 #
-# naive-scale runs THREE server instances (server1..3) behind nginx, each on a
-# 200m budget (600m aggregate, matching the single-instance 600m so the two are
-# comparable). Cross-instance fan-out goes over Redis pub/sub, but the ~2s outbox
+# naive-scale runs EIGHT server instances (server1..8) behind nginx, each on a
+# 33m / 0.5 CPU budget (same chat-tier budget as one proper-scale chat server).
+# Cross-instance fan-out goes over Redis pub/sub, but the ~2s outbox
 # poll is still the delivery-latency floor. The sweep drives the whole stack
 # through nginx :80 exactly like a client; it never talks to an instance directly.
 #
@@ -42,7 +42,7 @@ param(
   [int]      $Users        = 50,                  # tput only: users per room (Rooms*Users = held sockets)
   [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
 
-  [string]   $Tag          = "3x200m",
+  [string]   $Tag          = "8x33m",
   [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
   [int]      $Settle       = 5,                   # let all room members connect before sending
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
@@ -90,7 +90,7 @@ function Wait-Healthy([int] $TimeoutSec) {
 }
 
 # ---- Clean stack -----------------------------------------------------------
-Write-Host "=== recreating a clean stack (3x 200m servers + redis; wipes existing DB) ===" -ForegroundColor Cyan
+Write-Host "=== recreating a clean stack (8x 33m servers + redis; wipes existing DB) ===" -ForegroundColor Cyan
 Push-Location $repoRoot
 try {
   docker compose down --remove-orphans
@@ -102,10 +102,10 @@ finally { Pop-Location }
 Write-Host "=== waiting for $HttpBase/healthz (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
 if (-not (Wait-Healthy $ReadyTimeout)) {
   Write-Error "server never became healthy within ${ReadyTimeout}s"
-  Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3; Pop-Location
+  Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3 server4 server5 server6 server7 server8; Pop-Location
   exit 1
 }
-Write-Host "stack is up (nginx round-robins server1..3)." -ForegroundColor Green
+Write-Host "stack is up (nginx round-robins server1..8)." -ForegroundColor Green
 
 # ---- Resolve the containerized-generator network ---------------------------
 $net = $null
@@ -139,9 +139,9 @@ foreach ($s in $Steps) {
   }
 
   # Fresh Go process per step so heap/goroutines from a prior step don't skew it.
-  # Restart all three instances together; nginx re-probes them as they come back.
+  # Restart all eight instances together; nginx re-probes them as they come back.
   if (-not $NoRestart) {
-    Push-Location $repoRoot; docker compose restart server1 server2 server3 | Out-Null; Pop-Location
+    Push-Location $repoRoot; docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 | Out-Null; Pop-Location
     if (-not (Wait-Healthy $ReadyTimeout)) { Write-Error "servers unhealthy after restart"; exit 1 }
   }
 

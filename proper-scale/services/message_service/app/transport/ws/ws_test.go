@@ -29,6 +29,7 @@ type fakeMessageHandler struct {
 	mu       sync.Mutex
 	requests []incomingRequest
 	err      error
+	delay    time.Duration
 }
 
 type incomingRequest struct {
@@ -37,6 +38,7 @@ type incomingRequest struct {
 }
 
 func (h *fakeMessageHandler) HandleIncoming(_ context.Context, clientID string, request messagev1.SendRequest) (messagev1.Event, error) {
+	time.Sleep(h.delay)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.requests = append(h.requests, incomingRequest{clientID: clientID, request: request})
@@ -349,6 +351,44 @@ func TestMessage(t *testing.T) {
 
 }
 
+func TestReadDeadline(t *testing.T) {
+	t.Run("busy read loop keeps connection while frames keep arriving", func(t *testing.T) {
+		const messages = 6
+		handler := &fakeMessageHandler{delay: 150 * time.Millisecond}
+		url := startServer(t, newHub(t), &fakeUserServiceClient{}, handler, withReadTimeout(300*time.Millisecond))
+		c := dial(t, url+"?client_id=42&room_ids=a")
+
+		payload := `{"text":"` + strings.Repeat("x", 2048) + `"}`
+		for i := range messages {
+			if err := c.WriteMessage(websocket.TextMessage, mustMarshal(t, send("a", fmt.Sprintf("key-%d", i), payload))); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		c.SetReadDeadline(time.Now().Add(waitTimeout))
+		for i := range messages {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				t.Fatalf("read acknowledgement %d: %v", i, err)
+			}
+			var ack messagev1.AcceptedAck
+			if err := json.Unmarshal(data, &ack); err != nil {
+				t.Fatalf("decode acknowledgement %d: %v", i, err)
+			}
+			if want := fmt.Sprintf("key-%d", i); ack.Type != messagev1.AcceptedFrameType || ack.ClientMessageID != want {
+				t.Fatalf("acknowledgement %d = %+v, want accepted %s", i, ack, want)
+			}
+		}
+	})
+
+	t.Run("idle connection closed after read timeout", func(t *testing.T) {
+		url := startServer(t, newHub(t), &fakeUserServiceClient{}, &fakeMessageHandler{}, withReadTimeout(200*time.Millisecond))
+		c := dial(t, url+"?client_id=42&room_ids=a")
+
+		expectServerClose(t, c)
+	})
+}
+
 func newTestWs(t *testing.T) *Ws {
 	t.Helper()
 	w, err := NewWs(&fakeUserServiceClient{}, &Hub{}, testDial, &fakeMessageHandler{})
@@ -416,15 +456,22 @@ func expectServerClose(t *testing.T, c *websocket.Conn) {
 	t.Logf("got expected close error: %v", err)
 }
 
-func startServer(t *testing.T, hub *Hub, client contractsv1.UserServiceClient, ingest IngestHandler) string {
+func startServer(t *testing.T, hub *Hub, client contractsv1.UserServiceClient, ingest IngestHandler, options ...func(*Ws)) string {
 	t.Helper()
 	w, err := NewWs(client, hub, testDial, ingest)
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, option := range options {
+		option(w)
+	}
 	srv := httptest.NewServer(http.HandlerFunc(w.ServeWS))
 	t.Cleanup(srv.Close)
 	return "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+}
+
+func withReadTimeout(timeout time.Duration) func(*Ws) {
+	return func(w *Ws) { w.readTimeout = timeout }
 }
 
 func dial(t *testing.T, url string) *websocket.Conn {

@@ -1,8 +1,9 @@
 version: "3.9"
 
-# Shared definition for the three server instances. naive-scale runs N copies of
+# Shared definition for the eight server instances. naive-scale runs N copies of
 # the same process behind nginx (the "just add more boxes" reflex) — hence the
-# anchor. Each instance gets a 200m budget instead of the single-instance 600m.
+# anchor. Each instance gets the same 33m / 0.5 CPU chat-tier budget as one
+# proper-scale chat server, so 8 instances match proper-scale's chat tier.
 x-server: &server
   build:
     context: .
@@ -86,6 +87,26 @@ services:
     <<: *server
     container_name: chat-server-3
 
+  server4:
+    <<: *server
+    container_name: chat-server-4
+
+  server5:
+    <<: *server
+    container_name: chat-server-5
+
+  server6:
+    <<: *server
+    container_name: chat-server-6
+
+  server7:
+    <<: *server
+    container_name: chat-server-7
+
+  server8:
+    <<: *server
+    container_name: chat-server-8
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -93,6 +114,11 @@ services:
       - server1
       - server2
       - server3
+      - server4
+      - server5
+      - server6
+      - server7
+      - server8
     ports:
       - "80:80"
     ulimits:
@@ -104,5 +130,5 @@ services:
     deploy:
       resources:
         limits:
-          # Headroom so nginx is never the wall — the 3x200m servers are the SUT.
+          # Headroom so nginx is never the wall — the 8x33m servers are the SUT.
           memory: 512m

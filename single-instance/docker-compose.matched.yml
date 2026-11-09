@@ -1,0 +1,21 @@
+# Matched-budget variant of the single-instance stack.
+#
+# The default docker-compose.yml runs ONE server at 99m / 0.5 CPU: the "one small
+# box" baseline. This override gives that one process the same chat-tier budget as
+# the 8 x 33m / 0.5 CPU servers in naive-scale and the 8 chat servers in
+# proper-scale (8 x 33m = 264m, 8 x 0.5 = 4.0 CPU), so the three architectures can
+# be compared at equal chat-tier resources.
+#
+# Usage (from single-instance/):
+#   docker compose -f docker-compose.yml -f docker-compose.matched.yml up -d --build
+#
+# The server is still a single process, so this measures how far one process gets
+# when handed the whole chat-tier budget, not a multi-instance result.
+
+services:
+  server:
+    deploy:
+      resources:
+        limits:
+          memory: 264m
+          cpus: "4.00"
