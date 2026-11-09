@@ -12,7 +12,7 @@ import (
 )
 
 type Repository interface {
-	NextPending(context.Context, int) ([]postgres.Entry, error)
+	NextPending(context.Context, []int, int) ([]postgres.Entry, error)
 	MarkPublished(context.Context, []string) error
 }
 
@@ -22,6 +22,7 @@ type Config struct {
 	MaxRetries   int
 	RetryBackoff time.Duration
 	PollInterval time.Duration
+	Buckets      []int
 }
 
 type Relay struct {
@@ -46,7 +47,7 @@ func New(
 	if logger == nil {
 		return nil, errors.New("logger is required")
 	}
-	if config.Topic == "" || config.BatchSize < 1 || config.MaxRetries < 1 || config.RetryBackoff <= 0 || config.PollInterval <= 0 {
+	if config.Topic == "" || len(config.Buckets) == 0 || config.BatchSize < 1 || config.MaxRetries < 1 || config.RetryBackoff <= 0 || config.PollInterval <= 0 {
 		return nil, errors.New("relay configuration is invalid")
 	}
 	return &Relay{
@@ -81,7 +82,7 @@ func (r *Relay) Run(ctx context.Context) error {
 }
 
 func (r *Relay) processBatch(ctx context.Context) (int, error) {
-	entries, err := r.repository.NextPending(ctx, r.config.BatchSize)
+	entries, err := r.repository.NextPending(ctx, r.config.Buckets, r.config.BatchSize)
 	if err != nil {
 		return 0, err
 	}

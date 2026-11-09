@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	messagev1 "github.com/AGranosik/chat/contracts/messages"
 )
 
 type Config struct {
@@ -17,6 +19,7 @@ type Config struct {
 	BatchSize    int
 	MaxRetries   int
 	RetryBackoff time.Duration
+	Buckets      []int
 }
 
 func Load() (Config, error) {
@@ -61,6 +64,17 @@ func Load() (Config, error) {
 	cfg.MaxRetries, err = getInt("MAX_RETRIES", 3, 1, 10)
 	if err != nil {
 		return Config{}, err
+	}
+	shardCount, err := getInt("SHARD_COUNT", 1, 1, messagev1.RoomBuckets)
+	if err != nil {
+		return Config{}, err
+	}
+	shardID, err := getInt("SHARD_ID", 0, 0, shardCount-1)
+	if err != nil {
+		return Config{}, err
+	}
+	for bucket := shardID; bucket < messagev1.RoomBuckets; bucket += shardCount {
+		cfg.Buckets = append(cfg.Buckets, bucket)
 	}
 	return cfg, nil
 }

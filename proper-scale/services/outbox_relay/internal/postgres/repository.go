@@ -42,13 +42,17 @@ func (r *Repository) Ping(ctx context.Context) error {
 	return r.pool.Ping(ctx)
 }
 
-func (r *Repository) NextPending(ctx context.Context, limit int) ([]Entry, error) {
+func (r *Repository) NextPending(ctx context.Context, buckets []int, limit int) ([]Entry, error) {
+	shards := make([]int16, len(buckets))
+	for i, bucket := range buckets {
+		shards[i] = int16(bucket)
+	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT message_id::text, room_id, room_seq, event
 		FROM message_outbox
-		WHERE published_at IS NULL
+		WHERE published_at IS NULL AND shard = ANY($1::smallint[])
 		ORDER BY outbox_id
-		LIMIT $1`, limit)
+		LIMIT $2`, shards, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query pending outbox rows: %w", err)
 	}

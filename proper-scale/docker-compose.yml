@@ -26,6 +26,9 @@ x-server: &server
         memory: 33m
         cpus: "0.50"
 
+x-server-db-env: &server-db-env
+  DATABASE_URL: "postgres://chat:chat@postgres:5432/chat?sslmode=disable&pool_max_conns=8"
+
 
 services:
   postgres:
@@ -133,6 +136,27 @@ services:
         limits:
           memory: 80m
 
+  delivery_service_1:
+    build:
+      context: .
+      dockerfile: services/delivery_service/Dockerfile
+    container_name: delivery_service_1
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: "kafka:9092"
+      REDIS_ADDR: redis:6379
+    expose:
+      - "8080"
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 80m
+
   outbox_relay:
     build:
       context: .
@@ -143,11 +167,65 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      server1:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC: messages
       BATCH_SIZE: "500"
+      SHARD_COUNT: "3"
+      SHARD_ID: "0"
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 100m
+
+  outbox_relay_1:
+    build:
+      context: .
+      dockerfile: services/outbox_relay/Dockerfile
+    container_name: outbox-relay-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      server1:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: messages
+      BATCH_SIZE: "500"
+      SHARD_COUNT: "3"
+      SHARD_ID: "1"
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 100m
+
+  outbox_relay_2:
+    build:
+      context: .
+      dockerfile: services/outbox_relay/Dockerfile
+    container_name: outbox-relay-2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      server1:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: messages
+      BATCH_SIZE: "500"
+      SHARD_COUNT: "3"
+      SHARD_ID: "2"
     restart: on-failure
     deploy:
       resources:
@@ -174,6 +252,7 @@ services:
     <<: *server
     container_name: chat-server-1
     environment:
+      <<: *server-db-env
       DIAL: chat-server-1
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
@@ -182,6 +261,7 @@ services:
     <<: *server
     container_name: chat-server-2
     environment:
+      <<: *server-db-env
       DIAL: chat-server-2
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
@@ -190,6 +270,7 @@ services:
     <<: *server
     container_name: chat-server-3
     environment:
+      <<: *server-db-env
       DIAL: chat-server-3
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
@@ -198,6 +279,7 @@ services:
     <<: *server
     container_name: chat-server-4
     environment:
+      <<: *server-db-env
       DIAL: chat-server-4
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
@@ -206,7 +288,35 @@ services:
     <<: *server
     container_name: chat-server-5
     environment:
+      <<: *server-db-env
       DIAL: chat-server-5
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server6:
+    <<: *server
+    container_name: chat-server-6
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-6
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server7:
+    <<: *server
+    container_name: chat-server-7
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-7
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server8:
+    <<: *server
+    container_name: chat-server-8
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-8
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
 
@@ -219,6 +329,9 @@ services:
       - server3
       - server4
       - server5
+      - server6
+      - server7
+      - server8
     ports:
       - "80:80"
     ulimits:

@@ -200,7 +200,7 @@ type testRepository struct {
 	markErr error
 }
 
-func (r *testRepository) NextPending(_ context.Context, limit int) ([]postgres.Entry, error) {
+func (r *testRepository) NextPending(_ context.Context, _ []int, limit int) ([]postgres.Entry, error) {
 	if len(r.entries) > limit {
 		return append([]postgres.Entry(nil), r.entries[:limit]...), nil
 	}
@@ -229,6 +229,7 @@ func newTestRelay(t *testing.T, repository Repository, publisher *testPublisher,
 	t.Helper()
 	worker, err := New(repository, publisher, slog.New(slog.NewTextHandler(io.Discard, nil)), Config{
 		Topic:        "messages",
+		Buckets:      []int{0},
 		BatchSize:    10,
 		MaxRetries:   maxRetries,
 		RetryBackoff: time.Nanosecond,

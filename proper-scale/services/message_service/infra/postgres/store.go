@@ -135,9 +135,9 @@ func (s *Store) Accept(ctx context.Context, clientID string, request messagev1.S
 		return messagev1.Event{}, fmt.Errorf("marshal message event: %w", err)
 	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO message_outbox (message_id, room_id, room_seq, event, created_at)
-		VALUES ($1, $2, $3, $4::jsonb, $5)`,
-		databaseMessageID, event.RoomID, event.RoomSeq, string(serialized), event.CreatedAt)
+		INSERT INTO message_outbox (message_id, room_id, room_seq, shard, event, created_at)
+		VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+		databaseMessageID, event.RoomID, event.RoomSeq, messagev1.RoomBucket(event.RoomID), string(serialized), event.CreatedAt)
 	if err != nil {
 		return messagev1.Event{}, fmt.Errorf("insert message outbox: %w", err)
 	}

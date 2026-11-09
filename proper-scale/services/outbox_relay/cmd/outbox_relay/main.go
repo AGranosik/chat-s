@@ -54,6 +54,7 @@ func run() error {
 		MaxRetries:   cfg.MaxRetries,
 		RetryBackoff: cfg.RetryBackoff,
 		PollInterval: cfg.PollInterval,
+		Buckets:      cfg.Buckets,
 	})
 	if err != nil {
 		return err
