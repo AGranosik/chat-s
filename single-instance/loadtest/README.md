@@ -65,83 +65,81 @@ ramp-down); connection-only mode skips settle and drain. The default
 the per-second connect rate stays sane — e.g. 3000 sockets over the 150s ramp is
 20 conn/s; bump to `RAMP=300` for ~10 conn/s.
 
-## Finding the limits (single instance @ 600 MB)
+## Finding the limits (single instance @ 300 MB)
 
 `run-limits.ps1` + `summarize.ps1` answer two coupled questions for a server
-pinned to a **600 MB** budget (`docker-compose.yml`): how many websockets fit,
-and what message rate fits at that count. The infra ceilings were raised so the
-**Go process**, not nginx or fds, is what bends first (nginx `worker_connections
-65536`, container `nofile 262144`) — otherwise you only rediscover the old ~8192
-nginx wall. Record results in [`BASELINE.md`](BASELINE.md).
+pinned to a **300 MB / 8 CPU** budget (`docker-compose.yml`; Postgres 600 MB / 2 CPU,
+nginx 512 MB / 1 CPU): how many websockets fit, and what message rate fits at that
+count. The infra ceilings were raised so the **Go process**, not nginx or fds, is
+what bends first (nginx `worker_connections 65536`, container `nofile 262144`).
 
 **The generator is a containerized k6** on the compose network by default, so the
 Windows ephemeral-port range (~16k) never caps the test below the server. Each
-`run-limits.ps1` invocation recreates a clean stack and restarts the server
-between steps (fresh heap per step).
+`run-limits.ps1` invocation recreates a clean stack, waits until the server
+container and nginx both answer `/healthz`, and restarts the server between steps
+(fresh heap per step). Results go to `loadtest/results/<Tag>/<scenario>/`; the
+default tag is `300m`.
 
 1. **Connection ceiling** — hold sockets, send nothing; the largest all-green
    step is the limit:
    ```powershell
    ./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000,40000,60000
-   ./loadtest/summarize.ps1  -Dir loadtest/results/600m/conn
+   ./loadtest/summarize.ps1  -Dir loadtest/results/300m/conn
    ```
-2. **Message rate at that ceiling** — set `-Rooms`/`-Users` so `Rooms × Users`
-   equals the connection ceiling you found, then sweep the send interval:
+2. **Message rate at a fixed socket count** — set `-Rooms`/`-Users` so
+   `Rooms x Users` equals the connection count to test, then sweep the send
+   interval:
    ```powershell
-   ./loadtest/run-limits.ps1 -Scenario tput -Rooms 400 -Users 25 -Steps 5,2,1,0.5,0.25
-   ./loadtest/summarize.ps1  -Dir loadtest/results/600m/tput
+   ./loadtest/run-limits.ps1 -Scenario tput -Rooms 500 -Users 15 -Steps 10,8,6,4,3,2,1
+   ./loadtest/summarize.ps1  -Dir loadtest/results/300m/tput
    ```
-   The ceiling is the highest delivered `recv_per_s` at completeness ≥ 98 % and
+   The ceiling is the highest delivered `recv_per_s` at completeness >= 98 % and
    `ws_errors` within the teardown budget (`summarize.ps1 -WsErrTolerancePct`,
-   default 0.5 % of sockets — absorbs k6's end-of-test teardown noise). (Judge
-   throughput by **completeness**, not latency — the
-   ~2 s outbox poll is a fixed latency floor, not a throughput cap.)
+   default 0.5 % of sockets — absorbs k6's end-of-test teardown noise). Judge
+   throughput by **completeness and tail latency**, not by delivered rate alone:
+   the ~1 s outbox poll is a fixed latency floor, but a p95 well above it means the
+   relay is already queueing.
 
-`summarize.ps1 -Compare <dir>` puts two sweeps side by side — the future
-1-instance vs N-instance view (the N-instance run needs the multi-instance
-Broadcaster, not built yet).
+`summarize.ps1 -Compare <dir>` puts two sweeps side by side.
 
 **`-NativeK6`** runs the host `k6` instead of the container. Native k6 on Windows
 draws from the dynamic port range (~16k sockets); to push past that, widen it as
 admin first: `netsh int ipv4 set dynamicport tcp start=10000 num=55000`.
 
-## Results — throughput (single instance @ 600 MB)
+## Results — throughput (single instance @ 300 MB)
 
-Measured on this machine, so treat the absolutes as *relative* (see caveats);
-full read-off in [`BASELINE.md`](BASELINE.md).
+Measured on this machine with the generator on the same host, so treat the
+absolutes as *relative*. Full table, diagnosis and open questions in
+[`../LOAD_TEST_ANALYSIS.md`](../LOAD_TEST_ANALYSIS.md).
 
-- **Connection ceiling ≥ 12,000 concurrent websockets.** Both the 10k and 12k
-  `conn` steps stayed all-green — handshake 100 %, `ws_errors` within the
-  teardown budget, sub-3 ms connect p95. 12k is the largest step run, so this is
-  a *floor*: the real wall is higher and untested.
-- **Message-rate ceiling ≈ 10,500 delivered msg/s** (10,455 measured) at 10,000
-  sockets / room size 10 — an offered ~1,056 send/s fanned out to ~10.5k
-  deliveries/s at 99 % completeness.
+Earlier sweep (2 s relay poll, 100-row batches; re-run in progress against the
+1 s / 500-row relay): 7,500 sockets (500 rooms x 15 users), send interval
+10 -> 1 s.
 
-**How throughput breaks — fan-out saturation, not sockets or memory.** With the
-socket count pinned at 10k, the knee sits between offered **1,056 send/s (99 %
-complete)** and **1,333 send/s (65 % complete)**. Past it, delivered throughput
-*drops* as offered load rises (1,333 send/s delivers only ~8,660/s) while e2e
-latency runs away (p95 1.7 s → 34 s → 50 s+) as the outbox backlog grows
-unbounded. Handshakes stay 100 % and `ws_errors` stay within teardown budget
-throughout — so this is the in-memory hub broadcast + polling outbox relay
-hitting a CPU/fan-out cap, **not** a connection wall and **not** a 600 MB OOM
-restart.
-
-Bottom line: one 600 MB instance comfortably holds ≥12k idle sockets and
-sustains ~10.5k delivered msg/s; beyond that the **single-process fan-out**, not
-socket capacity, is what bends first — exactly the seam the multi-instance
-Broadcaster (Redis/Kafka) is meant to relieve.
+- **Message-rate ceiling ~ 28,100 delivered msg/s** (1,875 sends/s x 15
+  recipients) at 100 % completeness, but p95 is already 7.4 s there. The
+  **latency-clean point is ~ 18,800 msg/s** (1,250 sends/s, p95 1.8 s).
+- **Past the knee it degrades instead of plateauing:** at 2,500 sends/s delivery
+  falls to 21,627 msg/s (57.7 % complete, p95 42 s); at 3,700 sends/s it is 5 %
+  complete with ~3,100 socket errors (42 % of sockets).
+- Handshakes were 100 % and connect p95 2 ms in every step, so the limit is the
+  delivery path (outbox relay -> single hub goroutine -> socket writes), not the
+  connection count.
+- **Not measured yet:** the `conn` ceiling at 300 MB, and whether the collapse is
+  an OOM kill. Capture `docker stats` and `docker inspect chat-server --format
+  '{{.RestartCount}} {{.State.OOMKilled}}'` per step on the next run.
 
 ## What it measures
 
 - `msg_e2e_latency` — send→receive time per message. **This includes the outbox
-  relay's poll interval (~2s).** The thresholds (`p95<2.5s`, `p99<3.5s`) assume
-  the default 2s poll; loosen them if you change `pollInterval` in
+  relay's poll interval (~1s).** The thresholds (`p95<2.5s`, `p99<3.5s`) assume
+  the default 1s poll; loosen them if you change `pollInterval` in
   `internal/outbox/relay.go`.
 - `ws_connecting` — websocket handshake time (`p95<1s`).
 - `msgs_sent` / `msgs_received` — throughput counters.
 - `ws_errors` + a handshake check (`checks rate>0.99`).
+- Throughput runs also record sent/received counters; `summarize.ps1` derives
+  delivery completeness = received / (sent x users per room).
 
 ## Notes
 

@@ -2,11 +2,10 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver for goose
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
 	"naive-scale/migrations"
@@ -15,10 +14,11 @@ import (
 // Migrate applies all goose migrations on boot, using a short-lived
 // database/sql connection (goose speaks database/sql; the app speaks pgx).
 func Migrate(ctx context.Context, dsn string) error {
-	db, err := sql.Open("pgx", dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return fmt.Errorf("open migration db: %w", err)
+		return fmt.Errorf("parse migration dsn: %w", err)
 	}
+	db := stdlib.OpenDB(*cfg.ConnConfig)
 	defer db.Close()
 
 	goose.SetBaseFS(migrations.FS)

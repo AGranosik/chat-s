@@ -1,4 +1,0 @@
-"file","mode","rooms","users_per_room","total_clients","ramp_s","settle_s","load_s","drain_s","send_interval_s","messages_sent","expected_deliveries","messages_received","delivery_success_pct","handshake_pct","ws_errors","conn_p90_ms","conn_p95_ms","e2e_p50_ms","e2e_p95_ms","messages_accepted","sent_per_s","recv_per_s"
-"tput_si4","tput","400","10","4000","180","5","30","30","4","579","5790","4174","72.1","100","3924","3","3","17762","35058","579","19.3","139.1"
-"tput_si3","tput","400","10","4000","180","5","30","30","3","2353","23530","8428","35.8","100","3797","2","2","11259","34919","2066","78.4","280.9"
-"tput_si2","tput","400","10","4000","180","5","30","30","2","2371","23710","7820","33","100","3842","2","2","21525","42400","2371","79","260.7"

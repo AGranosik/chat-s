@@ -8,8 +8,8 @@ without rewriting the core.
 
 ```
                        ┌────────────────────────┐
-   browsers / clients  │   Load balancer (nginx) │  TLS termination,
-   ───────────────────▶│   :80 / :443            │  ws upgrade pass-through,
+   browsers / clients  │   Load balancer (nginx) │  plain HTTP (no TLS yet),
+   ───────────────────▶│   :80                   │  ws upgrade pass-through,
         WebSocket +    │                         │  single upstream (for now)
         REST           └───────────┬─────────────┘
                                    │ proxy_pass
@@ -26,7 +26,7 @@ without rewriting the core.
                        │      │  ▼                 │ │            │ users, OUTBOX
                        │   relay ──▶ hub           │ └─────┬──────┘
                        │           (in-mem chans)  │       │ poll outbox
-                       │              │            │◀──────┘ (~2s interval)
+                       │              │            │◀──────┘ (~1s interval)
                        └──────────────┼────────────┘
                                       │ broadcast to room members
                                       ▼
@@ -57,7 +57,7 @@ pure nginx edit.
    today). The hub pushes the message onto every registered client's send
    channel; each client's write pump flushes it to the socket. The relay marks
    the row dispatched only after the broadcast hand-off succeeds. It discovers
-   rows by polling the outbox on a fixed interval (~2s) — no database-specific
+   rows by polling the outbox on a fixed interval (~1s) — no database-specific
    signalling, so the same loop works against any storage engine and doubles as
    the crash-recovery path.
 4. **History** — `GET /api/rooms/{id}/messages?before=<cursor>` reads from
@@ -79,7 +79,10 @@ hub
 ```
 
 A single `hub.Run()` goroutine owns the `rooms` map and selects over the
-channels, so there is no shared-memory contention.
+channels, so there is no shared-memory contention. Each client has a 256-slot send
+channel drained by its own write pump (10 s write deadline, ping every 54 s). The
+hub's send to that channel is **blocking**, so one client that stops reading can
+stall the hub goroutine, and with it every room — see "Measured limits".
 
 ## The outbox (why persist and broadcast must be atomic)
 
@@ -106,11 +109,15 @@ outbox
   row in the *same* transaction. Either both commit or neither does; there is no
   in-between state.
 - **Read side (relay)** — a single relay goroutine (`internal/outbox/relay.go`)
-  selects undispatched rows ordered by `id`, calls the `Broadcaster`, then sets
-  `dispatched_at`. Ordering by `id` preserves per-room message order. The relay
-  is the **only** caller of `Broadcaster`.
+  claims undispatched rows ordered by `id` in batches of 500, calls the
+  `Broadcaster` for each, then sets `dispatched_at` and commits. The claim
+  (`select ... for update`), the hand-off and the stamp are **one transaction per
+  batch** (`storage.DispatchBatch`); a poll keeps draining batches until a short
+  one means the outbox is empty, and the poll timer starts only after a drain
+  finishes, so the gap between polls is the interval plus the drain time. Ordering by `id` preserves per-room message
+  order. The relay is the **only** caller of `Broadcaster`.
 - **Latency vs. simplicity** — the relay polls for undispatched rows on a fixed
-  interval (every ~2s) rather than relying on `pg_notify`/`LISTEN`. This trades a
+  interval (every ~1s) rather than relying on `pg_notify`/`LISTEN`. This trades a
   little latency for a design with no database-specific signalling: the write
   side only has to persist the message + outbox row, and the same poll loop
   re-scans after a crash, so a message is never stranded.
@@ -136,3 +143,46 @@ pagination. `outbox` is indexed on `(dispatched_at, id)` for the relay's drain
 query (undispatched rows, in order). The message insert and the outbox insert
 happen in one transaction — see "The outbox" above.
 
+## Resource budget
+
+`docker-compose.yml` pins every container so load-test numbers are attributable.
+The Go server is the system under test and has the tightest budget.
+
+| service  | memory | CPU | notes                                              |
+|----------|-------:|----:|----------------------------------------------------|
+| server   | 300 MB |   8 | `nofile` 262144, `somaxconn` 65535                 |
+| postgres | 600 MB |   2 | no volume: a fresh container is an empty database  |
+| nginx    | 512 MB |   1 | `worker_connections` 65536, `nofile` 262144        |
+
+nginx's limits are raised so it is never the first wall: a proxied websocket uses
+two connection slots (client side and upstream side), so `worker_connections
+65536` allows roughly 32k sockets per worker, and `proxy_read_timeout` is 3600 s to
+keep long-lived sockets open.
+
+Postgres has no volume and the schema is applied by goose on server start, so
+recreating the stack always gives a clean database.
+
+## Measured limits
+
+Full data and caveats are in [`../LOAD_TEST_ANALYSIS.md`](../LOAD_TEST_ANALYSIS.md).
+With 7,500 sockets in 15-member rooms the server delivered up to about 28,100
+frames/s (1,875 sends/s) at full completeness; p95 latency stayed at the ~1.8 s
+poll floor only up to about 18,800 frames/s. That sweep ran with the earlier relay
+(2 s poll, 100-row batches); the relay now polls every 1 s with 500-row batches
+and the sweep is being re-run, so these figures are provisional. Past the knee, delivery falls as load
+rises and sockets start to error, while handshakes stay healthy.
+
+Design points that shape that behaviour:
+
+- **Fan-out multiplies cost.** Every accepted message becomes one socket write per
+  room member (the sender included), all performed by one hub goroutine.
+- **Latency floor.** The relay polls every 1 s (`pollInterval` in
+  `internal/outbox/relay.go`), so a message waits up to a second plus its drain
+  time; a p95 well above that means the relay is queueing.
+- **No back-pressure toward senders.** Ingest keeps accepting messages while the
+  delivery path is saturated, so the outbox backlog grows unbounded.
+- **Blocking hub send.** A stalled client can block the hub (see "The hub").
+
+Open questions: whether the collapse at about twice the ceiling is a 300 MB OOM
+kill or the blocked hub, and what the socket-count ceiling is at 300 MB. Neither
+has been measured yet.

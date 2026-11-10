@@ -1,8 +1,9 @@
 # naive-scale — approach #2
 
-The "just add more boxes" reflex: run **three** copies of the same Go process
-behind one nginx load balancer, each on a **200m** memory budget (the
-single-instance approach ran one process on 600m). Postgres and nginx keep the
+The "just add more boxes" reflex: run **N** copies of the same Go process
+behind one nginx load balancer. The compose file currently defines **ten**
+instances at **100m / 0.8 CPU** each (the first experiments used three at 200m;
+the single-instance approach ran one process on 600m). Postgres and nginx keep the
 single-instance configuration.
 
 The server code started as a straight copy of `single-instance` — same REST +
@@ -31,8 +32,8 @@ internal/outbox/       relay.go — poll outbox; drain → Broadcaster (publishe
 internal/storage/      postgres.go, messages.go, outbox.go, rooms.go, users.go
 internal/models/       message.go, room.go, user.go
 migrations/            0001_init.sql (goose, embedded)
-nginx/nginx.conf       load-balances across server1..3
-docker-compose.yml     postgres + redis + 3x server (200m each) + nginx
+nginx/nginx.conf       REST round-robin; /ws hashed by ?room= (room affinity) across server1..10
+docker-compose.yml     postgres + redis + 10x server (100m each) + nginx
 loadtest/              k6 ws load test (ported from single-instance; 3x200m + Redis)
 ```
 
@@ -52,7 +53,7 @@ loadtest/              k6 ws load test (ported from single-instance; 3x200m + Re
 
 ```bash
 go run ./cmd/server     # run one instance locally (needs Postgres; see docker-compose.yml)
-docker compose up       # full stack: postgres + redis + 3 servers + nginx on :80
+docker compose up       # full stack: postgres + redis + 10 servers + nginx on :80
 go build ./...          # sanity build
 ```
 
@@ -75,7 +76,7 @@ is a real failure.
 ## Load tests
 
 k6 WebSocket load test under [`loadtest/`](loadtest/README.md), ported from
-`single-instance` and adapted to the 3×200m + Redis topology. It answers two
+`single-instance` and adapted to the multi-instance + Redis topology. It answers two
 questions — the concurrent-connection ceiling and the message-rate ceiling — and
 compares them against the single-instance baseline. See
 [`loadtest/README.md`](loadtest/README.md) for how to run the sweeps and
@@ -84,25 +85,24 @@ compares them against the single-instance baseline. See
 ```powershell
 docker compose up -d
 ./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000
-./loadtest/summarize.ps1  -Dir loadtest/results/3x200m/conn
+./loadtest/summarize.ps1  -Dir loadtest/results/10x100m/conn
 ```
 
-### Results (this configuration: 3×200 MB + Redis, nginx round-robin)
+### Results
 
-**Message-rate ceiling: ≈ 8 537 delivered msg/s at 10 000 sockets** (1 000 rooms
-× 10 users, completeness 99.1 %) — vs ≈ 5 542 msg/s for single-instance on the
-same 600 MB aggregate budget, a **~54 % win**. Handshakes stayed at 100 % on
-every step; the break past the ceiling is a completeness collapse (delivery stops
-tracking the offered rate, 70 % → 0 % over two steps), i.e. the relay → Redis →
-fan-out pipeline saturates, not the connections. Full tables and the 1-vs-N diff
-are in [`loadtest/BASELINE.md`](loadtest/BASELINE.md).
+Full write-up, with tables and the failure analysis:
+[`docs/LOAD_TESTS.md`](docs/LOAD_TESTS.md).
 
-**Conclusion — the ceiling belongs to round-robin, not to the design.** nginx
-round-robins every connection, so a room's members are scattered across all
-three instances and Redis must deliver each message to *every* instance holding
-a member — cross-instance amplification that grows with the instance count.
-Sending all of a room's connections to the **same instance** (room-affinity at
-nginx, `hash $arg_room consistent`) would turn that fan-out into an in-process
-write with ~1 Redis delivery per message. That is the next experiment:
-[`docs/plans/2026-07-09-room-affinity-routing.md`](docs/plans/2026-07-09-room-affinity-routing.md)
-— measure which resource is actually the wall first, then flip the routing.
+- **7 500 sockets (500 rooms × 15 users), 5 vs 10 instances × 100 MB, room-affinity
+  routing:** both are flat and lossless up to ≈ 1 250 sent/s (≈ 18 750 delivered/s,
+  p95 ≈ 1.8 s). At ≈ 1 870 sent/s nothing is lost but latency climbs to 10–18 s as
+  the outbox queues; at ≈ 2 500 sent/s completeness drops to 78–88 % and ws errors
+  start; beyond that delivery collapses. **Doubling the instances did not move the
+  ceiling**, so the limit is a resource shared by all instances (Postgres, Redis,
+  nginx or the host) — not yet attributed, since no resource metrics were captured.
+- **Earlier 3 × 200 MB, round-robin, 10 000 sockets:** ≈ 8 537 delivered msg/s at
+  99.1 % completeness vs ≈ 5 542 for single-instance (+54 %); see
+  [`loadtest/BASELINE.md`](loadtest/BASELINE.md).
+- **Room affinity** (`hash $arg_room consistent` for `/ws` in `nginx/nginx.conf`)
+  is now in place, so a room's fan-out is an in-process write; Redis pub/sub is
+  kept as the cross-instance bridge for the relay that claims a row.

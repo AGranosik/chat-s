@@ -1,9 +1,8 @@
 version: "3.9"
 
-# Shared definition for the eight server instances. naive-scale runs N copies of
+# Shared definition for the ten server instances. naive-scale runs N copies of
 # the same process behind nginx (the "just add more boxes" reflex) — hence the
-# anchor. Each instance gets the same 33m / 0.5 CPU chat-tier budget as one
-# proper-scale chat server, so 8 instances match proper-scale's chat tier.
+# anchor. Each instance gets a 100m / 0.8 CPU budget.
 x-server: &server
   build:
     context: .
@@ -14,7 +13,7 @@ x-server: &server
     redis:
       condition: service_healthy
   environment:
-    DATABASE_URL: postgres://chat:chat@postgres:5432/chat?sslmode=disable
+    DATABASE_URL: "postgres://chat:chat@postgres:5432/chat?sslmode=disable&pool_max_conns=8"
     HTTP_ADDR: ":8080"
     REDIS_ADDR: redis:6379
   expose:
@@ -34,7 +33,7 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 87m
+        memory: 100m
         cpus: "0.80"
 
 services:
@@ -142,6 +141,6 @@ services:
     deploy:
       resources:
         limits:
-          # Headroom so nginx is never the wall — the 8x33m servers are the SUT.
+          # Headroom so nginx is never the wall — the 10x100m servers are the SUT.
           memory: 512m
           cpus: "1.00"

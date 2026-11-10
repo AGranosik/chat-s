@@ -1,7 +1,7 @@
 # Limit-finding sweep runner for the naive-scale chat-s stack.
 #
-# naive-scale runs EIGHT server instances (server1..8) behind nginx, each on a
-# 33m / 0.5 CPU budget (same chat-tier budget as one proper-scale chat server).
+# naive-scale runs TEN server instances (server1..10) behind nginx, each on a
+# 100m / 0.8 CPU budget.
 # Cross-instance fan-out goes over Redis pub/sub, but the ~2s outbox
 # poll is still the delivery-latency floor. The sweep drives the whole stack
 # through nginx :80 exactly like a client; it never talks to an instance directly.
@@ -42,7 +42,7 @@ param(
   [int]      $Users        = 50,                  # tput only: users per room (Rooms*Users = held sockets)
   [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
 
-  [string]   $Tag          = "10x87m",
+  [string]   $Tag          = "10x100m",
   [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
   [int]      $Settle       = 5,                   # let all room members connect before sending
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
@@ -78,19 +78,30 @@ if ($NativeK6) {
   }
 }
 
-function Wait-Healthy([int] $TimeoutSec) {
+$serverContainers = @(1..10 | ForEach-Object { "chat-server-$_" })
+$readyPath = '/healthz'
+
+function Wait-Ready([int] $TimeoutSec) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   while ((Get-Date) -lt $deadline) {
-    try {
-      $resp = Invoke-WebRequest "$HttpBase/healthz" -UseBasicParsing -TimeoutSec 5
-      if ($resp.StatusCode -eq 200) { return $true }
-    } catch { Start-Sleep -Seconds 2 }
+    $pending = @()
+    foreach ($container in $serverContainers) {
+      docker exec $container sh -c "wget -q -O /dev/null -T 2 http://127.0.0.1:8080$readyPath >/dev/null 2>&1" | Out-Null
+      if ($LASTEXITCODE -ne 0) { $pending += $container }
+    }
+    if ($pending.Count -eq 0) {
+      try {
+        $response = Invoke-WebRequest "$($HttpBase.TrimEnd('/'))$readyPath" -UseBasicParsing -TimeoutSec 5
+        if ($response.StatusCode -eq 200) { return $true }
+      } catch { }
+    }
+    Start-Sleep -Seconds 1
   }
   return $false
 }
 
 # ---- Clean stack -----------------------------------------------------------
-Write-Host "=== recreating a clean stack (10x 87m servers + redis; wipes existing DB) ===" -ForegroundColor Cyan
+Write-Host "=== recreating a clean stack (5x 100m servers + redis; wipes existing DB) ===" -ForegroundColor Cyan
 Push-Location $repoRoot
 try {
   docker compose down --remove-orphans
@@ -99,8 +110,8 @@ try {
 }
 finally { Pop-Location }
 
-Write-Host "=== waiting for $HttpBase/healthz (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
-if (-not (Wait-Healthy $ReadyTimeout)) {
+Write-Host "=== waiting for all 10 servers and $HttpBase$readyPath (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
+if (-not (Wait-Ready $ReadyTimeout)) {
   Write-Error "server never became healthy within ${ReadyTimeout}s"
   Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3 server4 server5 server6 server7 server8 server9 server10; Pop-Location
   exit 1
@@ -139,10 +150,10 @@ foreach ($s in $Steps) {
   }
 
   # Fresh Go process per step so heap/goroutines from a prior step don't skew it.
-  # Restart all eight instances together; nginx re-probes them as they come back.
+  # Restart all ten instances together; nginx re-probes them as they come back.
   if (-not $NoRestart) {
     Push-Location $repoRoot; docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 | Out-Null; Pop-Location
-    if (-not (Wait-Healthy $ReadyTimeout)) { Write-Error "servers unhealthy after restart"; exit 1 }
+    if (-not (Wait-Ready $ReadyTimeout)) { Write-Error "servers unhealthy after restart"; exit 1 }
   }
 
   Write-Host ""

@@ -4,21 +4,17 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"chat-s/internal/models"
 	"chat-s/internal/storage"
 )
 
-// fakeStore implements outboxStore in memory. Each DispatchBatch call serves the
-// next pre-seeded batch (one slice per drain iteration) so we can simulate
-// multi-batch drains, invoking the relay's dispatch callback per event and
-// recording the ids it stamped. The real store does the claim + broadcast + mark
-// in one transaction; the fake collapses that into a single call.
 type fakeStore struct {
 	batches    [][]storage.OutboxEvent
 	calls      int
 	dispatched []int64
-	err        error // if set, DispatchBatch fails immediately (claim/mark error)
+	err        error
 }
 
 func (f *fakeStore) DispatchBatch(_ context.Context, _ int, dispatch func(storage.OutboxEvent) error) (int, error) {
@@ -40,7 +36,6 @@ func (f *fakeStore) DispatchBatch(_ context.Context, _ int, dispatch func(storag
 	return len(b), nil
 }
 
-// recordingBroadcaster captures the messages handed to it, in order.
 type recordingBroadcaster struct {
 	got []models.Message
 }
@@ -77,7 +72,7 @@ func TestDrain_BroadcastsAndMarksDispatched(t *testing.T) {
 }
 
 func TestDrain_EmptyOutboxIsNoOp(t *testing.T) {
-	store := &fakeStore{} // no batches → DispatchBatch returns 0
+	store := &fakeStore{}
 	bc := &recordingBroadcaster{}
 	r := &Relay{store: store, broadcaster: bc}
 
@@ -92,7 +87,6 @@ func TestDrain_EmptyOutboxIsNoOp(t *testing.T) {
 	}
 }
 
-// A full batch must trigger another dispatch; a short batch ends the drain.
 func TestDrain_LoopsUntilBatchUnderLimit(t *testing.T) {
 	full := make([]storage.OutboxEvent, batchSize)
 	for i := range full {
@@ -111,14 +105,11 @@ func TestDrain_LoopsUntilBatchUnderLimit(t *testing.T) {
 	if got, want := len(bc.got), batchSize+1; got != want {
 		t.Errorf("broadcast count = %d, want %d", got, want)
 	}
-	// Two non-empty batches processed, then the loop stops (short batch < limit).
 	if store.calls != 2 {
 		t.Errorf("DispatchBatch calls = %d, want 2", store.calls)
 	}
 }
 
-// A claim/mark failure inside DispatchBatch must surface so the tick retries the
-// (rolled-back, still-undispatched) rows rather than silently losing them.
 func TestDrain_DispatchBatchErrorPropagates(t *testing.T) {
 	sentinel := errors.New("boom")
 	store := &fakeStore{err: sentinel}
@@ -127,6 +118,70 @@ func TestDrain_DispatchBatchErrorPropagates(t *testing.T) {
 	if err := r.drain(context.Background()); !errors.Is(err, sentinel) {
 		t.Errorf("drain err = %v, want %v", err, sentinel)
 	}
+}
+
+func TestRun_FullBatchPollsAgainWithoutWaiting(t *testing.T) {
+	gapAfterFirstPoll(t, batchSize, nil, time.Hour)
+}
+
+func TestRun_ShortBatchWaitsPollInterval(t *testing.T) {
+	const interval = 50 * time.Millisecond
+
+	gap := gapAfterFirstPoll(t, batchSize-1, nil, interval)
+
+	if gap < interval {
+		t.Errorf("gap between polls = %v, want at least %v", gap, interval)
+	}
+}
+
+func TestRun_DispatchErrorWaitsPollInterval(t *testing.T) {
+	const interval = 50 * time.Millisecond
+
+	gap := gapAfterFirstPoll(t, 0, errors.New("boom"), interval)
+
+	if gap < interval {
+		t.Errorf("gap between polls = %v, want at least %v", gap, interval)
+	}
+}
+
+type scriptedStore struct {
+	next  func(call int) (int, error)
+	calls int
+}
+
+func (s *scriptedStore) DispatchBatch(_ context.Context, _ int, _ func(storage.OutboxEvent) error) (int, error) {
+	s.calls++
+	return s.next(s.calls)
+}
+
+func gapAfterFirstPoll(t *testing.T, firstBatch int, firstErr error, interval time.Duration) time.Duration {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var firstPolled time.Time
+	var gap time.Duration
+	store := &scriptedStore{next: func(call int) (int, error) {
+		if call == 1 {
+			firstPolled = time.Now()
+			return firstBatch, firstErr
+		}
+		gap = time.Since(firstPolled)
+		cancel()
+		return 0, nil
+	}}
+	r := &Relay{store: store, broadcaster: &recordingBroadcaster{}, pollInterval: interval}
+
+	done := make(chan struct{})
+	go func() {
+		r.Run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("relay did not poll a second time within 5s")
+	}
+	return gap
 }
 
 func equalIDs(a, b []int64) bool {

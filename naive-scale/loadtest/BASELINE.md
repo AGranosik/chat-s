@@ -1,5 +1,9 @@
 # Load-test baseline — naive-scale: 3 instances @ 200 MB each
 
+> **Historical record.** This is the original 3 × 200 MB round-robin setup. The
+> stack is now 10 × 100 MB with room-affinity routing; for the current series see
+> [`../docs/LOAD_TESTS.md`](../docs/LOAD_TESTS.md).
+
 > Template. Run the sweeps (`run-limits.ps1`), then paste `summarize.ps1` output
 > into the tables below. The point is a fixed, recorded reference that diffs
 > cleanly against `single-instance/loadtest/BASELINE.md` (same 600 MB aggregate
@@ -109,7 +113,7 @@ cross-instance amplification grows ~O(N) with instance count. Sending all of a
 room's connections to the **same instance** (nginx `hash $arg_room consistent`)
 would collapse that fan-out to an in-process write with ~1 Redis delivery per
 message; that's the next experiment, see
-[`docs/plans/2026-07-09-room-affinity-routing.md`](../docs/plans/2026-07-09-room-affinity-routing.md).
+`nginx/nginx.conf` (now implemented as `chat_ws_backend`).
 
 ## Caveats
 

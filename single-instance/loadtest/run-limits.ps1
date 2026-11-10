@@ -1,6 +1,6 @@
 # Limit-finding sweep runner for the chat-s server.
 #
-# Two coupled questions, one fixed 600m memory budget (set in docker-compose.yml):
+# Two coupled questions, one fixed 300m memory budget (set in docker-compose.yml):
 #
 #   1. How many websockets fit?   -Scenario conn  -Steps 5000,10000,20000,...
 #        Each step holds that many sockets and sends nothing. The largest step
@@ -36,7 +36,7 @@ param(
   [int]      $Users        = 50,                  # tput only: users per room (Rooms*Users = held sockets)
   [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
 
-  [string]   $Tag          = "870m",
+  [string]   $Tag          = "300m",
   [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
   [int]      $Settle       = 5,                   # let all room members connect before sending
   [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
@@ -72,19 +72,30 @@ if ($NativeK6) {
   }
 }
 
-function Wait-Healthy([int] $TimeoutSec) {
+$serverContainers = @('chat-server')
+$readyPath = '/healthz'
+
+function Wait-Ready([int] $TimeoutSec) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   while ((Get-Date) -lt $deadline) {
-    try {
-      $resp = Invoke-WebRequest "$HttpBase/healthz" -UseBasicParsing -TimeoutSec 5
-      if ($resp.StatusCode -eq 200) { return $true }
-    } catch { Start-Sleep -Seconds 2 }
+    $pending = @()
+    foreach ($container in $serverContainers) {
+      docker exec $container sh -c "wget -q -O /dev/null -T 2 http://127.0.0.1:8080$readyPath >/dev/null 2>&1" | Out-Null
+      if ($LASTEXITCODE -ne 0) { $pending += $container }
+    }
+    if ($pending.Count -eq 0) {
+      try {
+        $response = Invoke-WebRequest "$($HttpBase.TrimEnd('/'))$readyPath" -UseBasicParsing -TimeoutSec 5
+        if ($response.StatusCode -eq 200) { return $true }
+      } catch { }
+    }
+    Start-Sleep -Seconds 1
   }
   return $false
 }
 
 # ---- Clean stack -----------------------------------------------------------
-Write-Host "=== recreating a clean stack (870m / 8 CPU server budget; wipes existing DB) ===" -ForegroundColor Cyan
+Write-Host "=== recreating a clean stack (300m / 8 CPU server budget; wipes existing DB) ===" -ForegroundColor Cyan
 Push-Location $repoRoot
 try {
   docker compose down --remove-orphans
@@ -93,8 +104,8 @@ try {
 }
 finally { Pop-Location }
 
-Write-Host "=== waiting for $HttpBase/healthz (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
-if (-not (Wait-Healthy $ReadyTimeout)) {
+Write-Host "=== waiting for chat-server and $HttpBase$readyPath (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
+if (-not (Wait-Ready $ReadyTimeout)) {
   Write-Error "server never became healthy within ${ReadyTimeout}s"
   Push-Location $repoRoot; docker compose logs --tail 50 server; Pop-Location
   exit 1
@@ -135,7 +146,7 @@ foreach ($s in $Steps) {
   # Fresh Go process per step so heap/goroutines from a prior step don't skew it.
   if (-not $NoRestart) {
     Push-Location $repoRoot; docker compose restart server | Out-Null; Pop-Location
-    if (-not (Wait-Healthy $ReadyTimeout)) { Write-Error "server unhealthy after restart"; exit 1 }
+    if (-not (Wait-Ready $ReadyTimeout)) { Write-Error "server unhealthy after restart"; exit 1 }
   }
 
   Write-Host ""
