@@ -18,16 +18,13 @@ const (
 	maxHistoryLimit     = 200
 )
 
-// Router wires REST + websocket handlers over the store, service, and hub.
 type Router struct {
 	store *storage.Store
 	svc   *chat.Service
 	hub   *hub.Hub
-	ctx   context.Context // long-lived server context for connection pumps
+	ctx   context.Context
 }
 
-// NewRouter returns the configured http.Handler. ctx is the server's lifetime
-// context; connection pumps stop when it is cancelled.
 func NewRouter(ctx context.Context, store *storage.Store, svc *chat.Service, h *hub.Hub) http.Handler {
 	rt := &Router{store: store, svc: svc, hub: h, ctx: ctx}
 

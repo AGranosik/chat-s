@@ -104,8 +104,8 @@ sockets open to drain, and count every late arrival toward completeness.
 ./loadtest/summarize.ps1 -Dir loadtest/results/300m/tput
 ```
 
-`run-limits.ps1` waits for the server container and nginx to report ready before
-every step, restarts the server between steps for a fresh heap, and writes one JSON
+`run-limits.ps1` wipes the stack (`docker compose down -v`) and brings it back up
+before every step, waits for the server container and nginx to report ready, and writes one JSON
 per step to `loadtest/results/<tag>/<scenario>/`. See
 [`loadtest/README.md`](loadtest/README.md) for the parameters and the OS
 file-descriptor tuning the bigger cells need.

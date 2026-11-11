@@ -23,7 +23,7 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 33m
+        memory: 70m
         cpus: "0.50"
 
 x-server-db-env: &server-db-env
@@ -34,6 +34,7 @@ services:
   postgres:
     image: postgres:16
     container_name: chat-postgres
+    command: postgres -c max_connections=200
     environment:
       POSTGRES_USER: chat
       POSTGRES_PASSWORD: chat
@@ -352,6 +353,96 @@ services:
       PresenceService: presence_service:9090
       REDIS_ADDR: redis:6379
 
+  server11:
+    <<: *server
+    container_name: chat-server-11
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-11
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server12:
+    <<: *server
+    container_name: chat-server-12
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-12
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server13:
+    <<: *server
+    container_name: chat-server-13
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-13
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server14:
+    <<: *server
+    container_name: chat-server-14
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-14
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server15:
+    <<: *server
+    container_name: chat-server-15
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-15
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server16:
+    <<: *server
+    container_name: chat-server-16
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-16
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server17:
+    <<: *server
+    container_name: chat-server-17
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-17
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server18:
+    <<: *server
+    container_name: chat-server-18
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-18
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server19:
+    <<: *server
+    container_name: chat-server-19
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-19
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
+  server20:
+    <<: *server
+    container_name: chat-server-20
+    environment:
+      <<: *server-db-env
+      DIAL: chat-server-20
+      PresenceService: presence_service:9090
+      REDIS_ADDR: redis:6379
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -366,6 +457,16 @@ services:
       - server8
       - server9
       - server10
+      - server11
+      - server12
+      - server13
+      - server14
+      - server15
+      - server16
+      - server17
+      - server18
+      - server19
+      - server20
     ports:
       - "80:80"
     ulimits:

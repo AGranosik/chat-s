@@ -74,11 +74,13 @@ count. The infra ceilings were raised so the **Go process**, not nginx or fds, i
 what bends first (nginx `worker_connections 65536`, container `nofile 262144`).
 
 **The generator is a containerized k6** on the compose network by default, so the
-Windows ephemeral-port range (~16k) never caps the test below the server. Each
-`run-limits.ps1` invocation recreates a clean stack, waits until the server
-container and nginx both answer `/healthz`, and restarts the server between steps
-(fresh heap per step). Results go to `loadtest/results/<Tag>/<scenario>/`; the
-default tag is `300m`.
+Windows ephemeral-port range (~16k) never caps the test below the server.
+`run-limits.ps1` builds the images once, then before **every step** wipes the
+stack (`docker compose down -v`: containers and volumes, so Postgres starts empty)
+and brings it back up, waiting until the server container and nginx both answer
+`/healthz`. Every step therefore starts from a fresh process and an empty DB;
+`-NoClean` wipes only before the first step. Results go to
+`loadtest/results/<Tag>/<scenario>/`; the default tag is `300m`.
 
 1. **Connection ceiling** — hold sockets, send nothing; the largest all-green
    step is the limit:

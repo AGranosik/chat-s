@@ -20,9 +20,10 @@ which is the whole point of testing the multi-instance path.
 Same k6 script, same two questions (connection ceiling, message-rate ceiling).
 The adaptations are all in the runner and the read-off:
 
-- **`run-limits.ps1`** restarts `server1 server2 server3` between steps (not a
-  single `server`) and resolves the compose network from `chat-server-1`. Default
-  `-Tag` is `3x200m`.
+- **`run-limits.ps1`** wipes the whole stack (`docker compose down -v`: all
+  servers, Postgres and Redis with their volumes) and brings it back up before
+  every step, waits for `server1..10` and nginx, and resolves the compose network
+  from `chat-server-1`. Default `-Tag` is `10x100m`.
 - **Delivery path.** A message is persisted on whichever instance the sender is
   pinned to, its outbox relay picks it up on the **~2 s poll** (unchanged latency
   floor), and `hub.Broadcast` **publishes to Redis** `room:<id>`; every instance
@@ -103,9 +104,10 @@ bend first (nginx `worker_connections 65536`, container `nofile 262144`). Record
 results in [`BASELINE.md`](BASELINE.md).
 
 **The generator is a containerized k6** on the compose network by default, so the
-Windows ephemeral-port range (~16k) never caps the test below the servers. Each
-`run-limits.ps1` invocation recreates a clean stack and restarts all three
-instances between steps (fresh heap per step, per instance).
+Windows ephemeral-port range (~16k) never caps the test below the servers.
+`run-limits.ps1` builds the images once, then wipes and recreates the stack before
+every step, so each step starts with fresh processes and empty Postgres/Redis
+(`-NoClean` wipes only before the first step).
 
 1. **Connection ceiling** — hold sockets, send nothing; the largest all-green
    step is the limit:

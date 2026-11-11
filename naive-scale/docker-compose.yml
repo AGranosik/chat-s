@@ -1,8 +1,5 @@
 version: "3.9"
 
-# Shared definition for the ten server instances. naive-scale runs N copies of
-# the same process behind nginx (the "just add more boxes" reflex) — hence the
-# anchor. Each instance gets a 100m / 0.8 CPU budget.
 x-server: &server
   build:
     context: .
@@ -17,13 +14,8 @@ x-server: &server
     HTTP_ADDR: ":8080"
     REDIS_ADDR: redis:6379
   expose:
-    - "8080" # internal only: reachable by nginx on the compose network, never published to the host
+    - "8080"
   restart: on-failure
-  # Each proxied websocket is one fd on the server; the daemon default (often
-  # 1024) caps us near ~1000 conns. Raised high enough that fds never bind
-  # before the memory budget does. somaxconn deepens the accept queue so a
-  # connect burst doesn't overflow it and get RST (Go sizes the listen backlog
-  # from net.core.somaxconn).
   ulimits:
     nofile:
       soft: 262144
@@ -54,8 +46,6 @@ services:
     deploy:
       resources:
         limits:
-          # Fixed DB budget so Postgres doesn't eat host RAM and mask the
-          # servers' own memory wall.
           memory: 600m
           cpus: "2.00"
 
@@ -141,6 +131,5 @@ services:
     deploy:
       resources:
         limits:
-          # Headroom so nginx is never the wall — the 10x100m servers are the SUT.
           memory: 512m
           cpus: "1.00"

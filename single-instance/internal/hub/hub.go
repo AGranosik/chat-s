@@ -8,15 +8,11 @@ import (
 	"chat-s/internal/models"
 )
 
-// envelope is a room-scoped payload moving through the broadcast channel.
 type envelope struct {
 	roomID  string
 	payload []byte
 }
 
-// Hub owns live connection state for one process. A single Run goroutine owns
-// the rooms map and selects over the channels, so there is no shared-memory
-// contention (the pattern from ../log-prop).
 type Hub struct {
 	register   chan *Client
 	unregister chan *Client
@@ -36,9 +32,6 @@ func New() *Hub {
 func (h *Hub) Register(c *Client)   { h.register <- c }
 func (h *Hub) Unregister(c *Client) { h.unregister <- c }
 
-// Broadcast implements chat.Broadcaster. It marshals the message and queues it
-// for fan-out. The hand-off blocks rather than drops — losing a message is
-// worse than back-pressure (see CLAUDE.md).
 func (h *Hub) Broadcast(roomID string, msg models.Message) {
 	payload, err := json.Marshal(msg)
 	if err != nil {
@@ -48,7 +41,6 @@ func (h *Hub) Broadcast(roomID string, msg models.Message) {
 	h.broadcast <- envelope{roomID: roomID, payload: payload}
 }
 
-// Run owns the rooms map and serialises every mutation. Cancel ctx to stop.
 func (h *Hub) Run(ctx context.Context) {
 	for {
 		select {
@@ -73,7 +65,7 @@ func (h *Hub) Run(ctx context.Context) {
 			}
 		case env := <-h.broadcast:
 			for c := range h.rooms[env.roomID] {
-				c.send <- env.payload // blocking send: never drop a message
+				c.send <- env.payload
 			}
 		}
 	}

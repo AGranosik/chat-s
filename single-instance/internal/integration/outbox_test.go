@@ -16,7 +16,6 @@ import (
 	"chat-s/internal/storage"
 )
 
-// HandleIncoming must commit the message row and the outbox row atomically.
 func TestOutbox_HandleIncomingPersistsBothRows(t *testing.T) {
 	freshDB(t)
 	ctx := context.Background()
@@ -33,7 +32,6 @@ func TestOutbox_HandleIncomingPersistsBothRows(t *testing.T) {
 		t.Errorf("undispatched outbox = %d, want 1", got)
 	}
 
-	// The outbox payload round-trips to the persisted message.
 	events, err := testStore.FetchUndispatched(ctx, 10)
 	if err != nil {
 		t.Fatalf("fetch: %v", err)
@@ -43,15 +41,14 @@ func TestOutbox_HandleIncomingPersistsBothRows(t *testing.T) {
 	}
 }
 
-// Invalid frames must write neither a message nor an outbox row.
 func TestOutbox_ValidationWritesNothing(t *testing.T) {
 	freshDB(t)
 	ctx := context.Background()
 	svc := chat.NewService(testStore)
 
 	cases := []chat.Incoming{
-		{UserID: seedUserID, Body: "   "}, // empty after trim
-		{UserID: "", Body: "hi"},          // missing user
+		{UserID: seedUserID, Body: "   "},
+		{UserID: "", Body: "hi"},
 	}
 	for _, in := range cases {
 		if err := svc.HandleIncoming(ctx, seedRoomID, in); !errors.Is(err, chat.ErrInvalid) {
@@ -67,11 +64,9 @@ func TestOutbox_ValidationWritesNothing(t *testing.T) {
 	}
 }
 
-// The relay polls the outbox, drains a newly enqueued event to the broadcaster
-// and stamps it dispatched.
 func TestOutbox_RelayDispatchesEnqueuedEvent(t *testing.T) {
 	rec := &recordingBroadcaster{}
-	st := newStack(t, rec) // relay feeds the recorder; ctx cleaned up by t.Cleanup
+	st := newStack(t, rec)
 	ctx := context.Background()
 
 	if err := st.svc.HandleIncoming(ctx, seedRoomID, chat.Incoming{UserID: seedUserID, Body: "pick-me-up"}); err != nil {
@@ -87,7 +82,6 @@ func TestOutbox_RelayDispatchesEnqueuedEvent(t *testing.T) {
 		return errors.New("broadcast not seen yet")
 	})
 
-	// And the row is marked dispatched after hand-off.
 	eventually(t, 5*time.Second, func() error {
 		if countRows(t, `select count(*) from outbox where dispatched_at is null`) == 0 {
 			return nil
@@ -96,8 +90,6 @@ func TestOutbox_RelayDispatchesEnqueuedEvent(t *testing.T) {
 	})
 }
 
-// A row enqueued directly (bypassing the service) must still be drained by the
-// relay's poll — the same path crash-recovery relies on.
 func TestOutbox_RelayPollDrainsDirectlyEnqueuedRow(t *testing.T) {
 	rec := &recordingBroadcaster{}
 	_ = newStack(t, rec)
@@ -112,7 +104,6 @@ func TestOutbox_RelayPollDrainsDirectlyEnqueuedRow(t *testing.T) {
 		t.Fatalf("enqueue: %v", err)
 	}
 
-	// Poll interval is ~2s; allow generous slack.
 	eventually(t, 8*time.Second, func() error {
 		for _, m := range rec.snapshot() {
 			if m.Body == "poll-only" {

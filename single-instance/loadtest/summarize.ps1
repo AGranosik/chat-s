@@ -1,34 +1,8 @@
-# Reads the k6 --summary-export JSONs from a sweep dir and prints a per-cell
-# table you can scan to find where a sweep breaks. Also writes summary.md and
-# summary.csv next to the JSONs so you can paste straight into BASELINE.md.
-#
-#   ./summarize.ps1 -Dir loadtest/results/600m/conn
-#   ./summarize.ps1 -Dir loadtest/results/600m/tput
-#   ./summarize.ps1 -Dir loadtest/results/1-instance/tput -Compare loadtest/results/3-instance/tput
-#
-# Per cell it reports: rooms, users per room, total clients, sent/received
-# message counts, and delivery success % = received / (sent x users per room).
-# It also includes handshake success, ws errors, latency, and message rates.
-# Throughput sends begin after ramp + settle; received messages during drain count
-# toward completeness. Rates are normalized by the send-window duration.
-#
-# Read-off rules:
-#   conn sweep -- the largest socket count with handshake% >= 99 and ws_errors
-#                within the teardown budget (see -WsErrTolerancePct) is the
-#                connection ceiling.
-#   tput sweep -- the highest delivered msg/s with completeness >= 98% and
-#                ws_errors within the teardown budget is the message-rate ceiling
-#                at that socket count.
-
 param(
   [Parameter(Mandatory = $true)]
   [string] $Dir,
-  [string] $Compare,                 # optional: a second sweep dir for a side-by-side
-  [double] $WsErrTolerancePct = 0.5  # ws_errors up to this % of sockets are treated as
-                                     # k6 end-of-test teardown noise, not a server fault.
-                                     # Observed artifact tops out ~0.16% (19/12000); the
-                                     # first real collapse is ~22% (2261/10000), so 0.5%
-                                     # separates them with wide margin. Set 0 for strict.
+  [string] $Compare,
+  [double] $WsErrTolerancePct = 0.5
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,7 +15,6 @@ function Get-Rows([string] $d) {
   $rows = foreach ($f in $files) {
     $j = Get-Content $f.FullName -Raw | ConvertFrom-Json
 
-    # Sockets and room size come from setup_data (ROOMS uuids x USERS uuids).
     $roomsN = @($j.setup_data.rooms).Count
     $usersN = @($j.setup_data.users).Count
     $sockets = $roomsN * $usersN
@@ -51,7 +24,6 @@ function Get-Rows([string] $d) {
     $drainS = if ($null -ne $j.setup_data.drain_s) { [int]$j.setup_data.drain_s } else { $null }
     $sendIntervalS = if ($null -ne $j.setup_data.send_interval_s) { [double]$j.setup_data.send_interval_s } else { $null }
 
-    # Handshake check: scan root + nested groups for the '... handshake ...' check.
     $passes = 0; $fails = 0
     $checkBags = @($j.root_group.checks)
     foreach ($g in @($j.root_group.groups.PSObject.Properties.Value)) { $checkBags += $g.checks }
@@ -82,13 +54,8 @@ function Get-Rows([string] $d) {
       [math]::Round(100.0 * $recv / ($sent * $usersN), 1)
     } else { $null }
 
-    # k6 tears a few sockets down uncleanly at end-of-test, surfacing as a handful
-    # of ws_errors even on a healthy step. Tolerate a budget proportional to socket
-    # count (a real collapse is orders of magnitude above it). Floor at 5 so tiny
-    # sweeps still absorb the noise.
     $wsBudget = [math]::Max(5, [math]::Ceiling($sockets * $WsErrTolerancePct / 100.0))
 
-    # OK = stayed green: all handshakes, ws errors within budget, and (when sending) ~full delivery.
     $ok = ($wsErr -le $wsBudget) -and ($null -ne $hsPct -and $hsPct -ge 99) -and
           (($sent -eq 0) -or ($null -ne $complete -and $complete -ge 98))
 
@@ -121,7 +88,6 @@ function Get-Rows([string] $d) {
     }
   }
 
-  # Sort: connection sweeps by sockets, throughput sweeps by offered rate.
   $isTput = ($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
   if ($isTput) { $rows | Sort-Object sent_per_s } else { $rows | Sort-Object sockets }
 }
@@ -142,7 +108,6 @@ function Show-Table($rows, [string] $title, [string] $outDir) {
   Write-Host "### $title" -ForegroundColor Cyan
   Write-Host $md
 
-  # Read-off hint.
   $isTput = ($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
   if ($isTput) {
     $best = $rows | Where-Object { $_.ok } | Sort-Object recv_per_s | Select-Object -Last 1

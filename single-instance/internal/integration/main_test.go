@@ -1,13 +1,5 @@
 //go:build integration
 
-// Package integration holds end-to-end tests that run against a real Postgres,
-// spun up once per package via testcontainers. They exercise the seams the
-// unit tests fake out: real SQL, the transactional outbox, the polling relay,
-// and a full websocket round-trip. Run with:
-//
-//	go test -tags=integration ./internal/integration/...
-//
-// Requires a running Docker daemon (Docker Desktop on Windows).
 package integration
 
 import (
@@ -24,8 +16,6 @@ import (
 	"chat-s/internal/storage"
 )
 
-// Shared across the package: one container, one pool, migrations applied once.
-// Per-test isolation comes from freshDB (truncate + reseed), not new containers.
 var (
 	testDSN   string
 	testStore *storage.Store
@@ -35,7 +25,6 @@ func TestMain(m *testing.M) {
 	os.Exit(run(m))
 }
 
-// run owns the container lifecycle so deferred cleanup runs before os.Exit.
 func run(m *testing.M) int {
 	ctx := context.Background()
 
@@ -48,9 +37,6 @@ func run(m *testing.M) int {
 		),
 	)
 	if err != nil {
-		// No Docker / can't pull image: fail the suite. Integration tests are
-		// opt-in via -tags=integration, so if you asked for them and the
-		// container won't come up, that's a failure, not a silent pass.
 		log.Printf("integration: cannot start postgres container | err=%v", err)
 		return 1
 	}
@@ -78,16 +64,11 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// Fixed seed UUIDs used by the integration tests so FK inserts always have a
-// parent. freshDB creates these rows; the migration itself seeds nothing.
 const (
 	seedRoomID = "00000000-0000-0000-0000-000000000001"
 	seedUserID = "00000000-0000-0000-0000-000000000001"
 )
 
-// freshDB resets message/outbox state between tests and guarantees the seed
-// room+user exist. It inserts them itself (on conflict do nothing) so each test
-// is self-contained regardless of what a prior test left behind.
 func freshDB(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
@@ -107,7 +88,6 @@ func freshDB(t *testing.T) {
 	}
 }
 
-// countRows is a tiny query helper used across tests.
 func countRows(t *testing.T, query string, args ...any) int {
 	t.Helper()
 	var n int
@@ -117,9 +97,6 @@ func countRows(t *testing.T, query string, args ...any) int {
 	return n
 }
 
-// eventually polls fn until it returns nil or the timeout elapses. Used instead
-// of fixed sleeps so assertions tolerate the relay's ~2s poll interval without
-// being flaky.
 func eventually(t *testing.T, timeout time.Duration, fn func() error) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

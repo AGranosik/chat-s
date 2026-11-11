@@ -13,7 +13,6 @@ import (
 	"chat-s/internal/storage"
 )
 
-// insertMessage is a small helper that runs InsertMessage in its own tx.
 func insertMessage(t *testing.T, body string) models.Message {
 	t.Helper()
 	m := models.Message{RoomID: seedRoomID, UserID: seedUserID, Body: body}
@@ -30,13 +29,11 @@ func TestStorage_InsertAndHistoryPagination(t *testing.T) {
 	freshDB(t)
 	ctx := context.Background()
 
-	// Insert 5 messages; ids are monotonic (bigserial).
 	var ids []int64
 	for _, b := range []string{"m1", "m2", "m3", "m4", "m5"} {
 		ids = append(ids, insertMessage(t, b).ID)
 	}
 
-	// Newest-first, limit honored.
 	page1, err := testStore.History(ctx, seedRoomID, 0, 2)
 	if err != nil {
 		t.Fatalf("history page1: %v", err)
@@ -45,7 +42,6 @@ func TestStorage_InsertAndHistoryPagination(t *testing.T) {
 		t.Fatalf("page1 = %+v, want m5,m4 newest-first", page1)
 	}
 
-	// Keyset: next page older than the last id seen.
 	page2, err := testStore.History(ctx, seedRoomID, page1[1].ID, 2)
 	if err != nil {
 		t.Fatalf("history page2: %v", err)
@@ -54,7 +50,6 @@ func TestStorage_InsertAndHistoryPagination(t *testing.T) {
 		t.Fatalf("page2 = %+v, want m3,m2", page2)
 	}
 
-	// Scanned fields are populated.
 	if page1[0].ID != ids[4] || page1[0].RoomID != seedRoomID || page1[0].UserID != seedUserID {
 		t.Errorf("scanned message = %+v, want id=%d room/user seeded", page1[0], ids[4])
 	}
@@ -122,7 +117,6 @@ func TestStorage_RoomsAndUsersCRUD(t *testing.T) {
 		t.Errorf("users = %+v, want demo + alice", users)
 	}
 
-	// Unique constraints surface as errors.
 	if _, err := testStore.CreateRoom(ctx, "random"); err == nil {
 		t.Error("duplicate room name succeeded, want unique violation")
 	}
@@ -135,7 +129,6 @@ func TestStorage_OutboxEnqueueFetchMark(t *testing.T) {
 	freshDB(t)
 	ctx := context.Background()
 
-	// Enqueue three events directly, each carrying a decodable message payload.
 	for i := 1; i <= 3; i++ {
 		msg := models.Message{ID: int64(i), RoomID: seedRoomID, Body: "e" + string(rune('0'+i))}
 		payload, _ := json.Marshal(msg)
@@ -154,7 +147,6 @@ func TestStorage_OutboxEnqueueFetchMark(t *testing.T) {
 	if len(events) != 3 {
 		t.Fatalf("undispatched = %d, want 3", len(events))
 	}
-	// Ordered by id (outbox row id), payload decoded.
 	if events[0].ID >= events[1].ID || events[1].ID >= events[2].ID {
 		t.Errorf("events not id-ordered: %+v", events)
 	}
@@ -162,7 +154,6 @@ func TestStorage_OutboxEnqueueFetchMark(t *testing.T) {
 		t.Errorf("event[0] = %+v, want room seeded, body e1", events[0])
 	}
 
-	// Mark the first two dispatched; only the third remains.
 	if err := testStore.MarkDispatched(ctx, []int64{events[0].ID, events[1].ID}); err != nil {
 		t.Fatalf("mark dispatched: %v", err)
 	}

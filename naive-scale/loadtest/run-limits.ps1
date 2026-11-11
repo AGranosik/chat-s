@@ -1,58 +1,26 @@
-# Limit-finding sweep runner for the naive-scale chat-s stack.
-#
-# naive-scale runs TEN server instances (server1..10) behind nginx, each on a
-# 100m / 0.8 CPU budget.
-# Cross-instance fan-out goes over Redis pub/sub, but the ~2s outbox
-# poll is still the delivery-latency floor. The sweep drives the whole stack
-# through nginx :80 exactly like a client; it never talks to an instance directly.
-#
-# Two coupled questions, one fixed aggregate budget (set in docker-compose.yml):
-#
-#   1. How many websockets fit?   -Scenario conn  -Steps 5000,10000,20000,...
-#        Each step holds that many sockets and sends nothing. The largest step
-#        that stays GREEN (k6 exit 0: all handshakes ok, no ws errors, no instance
-#        OOM-restarted) is the connection ceiling.
-#
-#   2. What message rate fits at that ceiling?   -Scenario tput
-#        Hold the socket count you found (-Rooms x -Users) and sweep the per-VU
-#        send interval (-Steps = SEND_INTERVAL values, fractional ok). Read the
-#        max delivered rate at >=98% completeness from summarize.ps1.
-#
-# The generator is a CONTAINERIZED k6 on the compose network by default, so the
-# Windows ephemeral-port wall (~16k) never caps the test below the server. Pass
-# -NativeK6 to use the host k6 binary instead (then widen the port range first --
-# see README).
-#
-#   ./run-limits.ps1 -Scenario conn -Steps 5000,10000,20000,40000
-#   ./run-limits.ps1 -Scenario tput -Rooms 400 -Users 25 -Steps 5,2,1,0.5,0.25
-#
-# Per-step JSON summaries land in loadtest/results/<Tag>/<Scenario>/. Feed that
-# dir to summarize.ps1 to read off where each sweep breaks. This script only runs
-# the sweep -- you decide where the limit is.
-
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('conn', 'tput')]
   [string]   $Scenario,
 
   [Parameter(Mandatory = $true)]
-  [double[]] $Steps,                              # conn: socket counts; tput: SEND_INTERVAL values
+  [double[]] $Steps,
 
-  [int]      $Rooms        = 100,                 # tput only: fixed room count (set to your found limit)
-  [int]      $Users        = 50,                  # tput only: users per room (Rooms*Users = held sockets)
-  [int]      $ConnUsers    = 2,                   # conn only: users/room (small = minimal fan-out)
+  [int]      $Rooms        = 100,
+  [int]      $Users        = 50,
+  [int]      $ConnUsers    = 2,
 
   [string]   $Tag          = "10x100m",
-  [int]      $Ramp         = 180,                 # ramp sockets up over N seconds (avoid a thundering herd)
-  [int]      $Settle       = 5,                   # let all room members connect before sending
-  [int]      $Duration     = 30,                  # hold-at-full-load window, seconds
-  [int]      $Drain         = 30,                 # keep sockets open for pending deliveries
+  [int]      $Ramp         = 180,
+  [int]      $Settle       = 5,
+  [int]      $Duration     = 30,
+  [int]      $Drain        = 30,
 
   [string]   $HttpBase     = "http://localhost:80",
   [int]      $ReadyTimeout = 120,
-  [switch]   $NativeK6,                           # use the host k6 binary instead of a container
-  [switch]   $NoRestart,                          # don't restart the server between steps (default: fresh process per step)
-  [switch]   $KeepUp                              # leave the stack up at the end
+  [switch]   $NativeK6,
+  [switch]   $NoClean,
+  [switch]   $KeepUp
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,7 +30,6 @@ $script   = Join-Path $PSScriptRoot "chat_load.js"
 $outDir   = Join-Path $PSScriptRoot (Join-Path "results" (Join-Path $Tag $Scenario))
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-# ---- Preflight -------------------------------------------------------------
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   Write-Error "docker not found on PATH."; exit 1
 }
@@ -78,6 +45,7 @@ if ($NativeK6) {
   }
 }
 
+$serverServices   = @(1..10 | ForEach-Object { "server$_" })
 $serverContainers = @(1..10 | ForEach-Object { "chat-server-$_" })
 $readyPath = '/healthz'
 
@@ -100,25 +68,33 @@ function Wait-Ready([int] $TimeoutSec) {
   return $false
 }
 
-# ---- Clean stack -----------------------------------------------------------
-Write-Host "=== recreating a clean stack (5x 100m servers + redis; wipes existing DB) ===" -ForegroundColor Cyan
+function Reset-Stack {
+  Write-Host "=== wiping the stack (postgres, redis volumes) and starting it fresh ===" -ForegroundColor Cyan
+  Push-Location $repoRoot
+  try {
+    docker compose down -v --remove-orphans
+    docker compose up -d
+    if ($LASTEXITCODE -ne 0) { throw "docker compose up failed (exit $LASTEXITCODE)" }
+  }
+  finally { Pop-Location }
+
+  Write-Host "=== waiting for all $($serverContainers.Count) servers and $HttpBase$readyPath (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
+  if (-not (Wait-Ready $ReadyTimeout)) {
+    Push-Location $repoRoot; docker compose logs --tail 50 @serverServices; Pop-Location
+    throw "servers never became healthy within ${ReadyTimeout}s"
+  }
+  Write-Host "stack is up (nginx round-robins server1..$($serverContainers.Count))." -ForegroundColor Green
+}
+
 Push-Location $repoRoot
 try {
-  docker compose down --remove-orphans
-  docker compose up -d --build
-  if ($LASTEXITCODE -ne 0) { Write-Error "docker compose up failed (exit $LASTEXITCODE)"; exit 1 }
+  docker compose build
+  if ($LASTEXITCODE -ne 0) { throw "docker compose build failed (exit $LASTEXITCODE)" }
 }
 finally { Pop-Location }
 
-Write-Host "=== waiting for all 10 servers and $HttpBase$readyPath (up to ${ReadyTimeout}s) ===" -ForegroundColor Cyan
-if (-not (Wait-Ready $ReadyTimeout)) {
-  Write-Error "server never became healthy within ${ReadyTimeout}s"
-  Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3 server4 server5 server6 server7 server8 server9 server10; Pop-Location
-  exit 1
-}
-Write-Host "stack is up (nginx round-robins server1..10)." -ForegroundColor Green
+Reset-Stack
 
-# ---- Resolve the containerized-generator network ---------------------------
 $net = $null
 if (-not $NativeK6) {
   $netsJson = docker inspect chat-server-1 --format '{{json .NetworkSettings.Networks}}'
@@ -127,10 +103,9 @@ if (-not $NativeK6) {
   Write-Host "containerized k6 -> network '$net' -> http://chat-nginx:80" -ForegroundColor DarkGray
 }
 
-# ---- Run the sweep ---------------------------------------------------------
 $failed = @()
+$firstStep = $true
 foreach ($s in $Steps) {
-  # Map a step onto the k6 knobs for this scenario.
   if ($Scenario -eq 'conn') {
     $sockets   = [int]$s
     $u         = $ConnUsers
@@ -149,12 +124,8 @@ foreach ($s in $Steps) {
     $label     = "{0} sockets, 1 msg / {1}s/VU (offered ~{2:n0} msg/s)" -f ($r * $u), $s, (($r * $u) / $s)
   }
 
-  # Fresh Go process per step so heap/goroutines from a prior step don't skew it.
-  # Restart all ten instances together; nginx re-probes them as they come back.
-  if (-not $NoRestart) {
-    Push-Location $repoRoot; docker compose restart server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 | Out-Null; Pop-Location
-    if (-not (Wait-Ready $ReadyTimeout)) { Write-Error "servers unhealthy after restart"; exit 1 }
-  }
+  if (-not $firstStep -and -not $NoClean) { Reset-Stack }
+  $firstStep = $false
 
   Write-Host ""
   Write-Host "=== [$Scenario] $label  (ramp=${Ramp}s, hold=${Duration}s) ===" -ForegroundColor Cyan
@@ -175,8 +146,6 @@ foreach ($s in $Steps) {
     k6 run --summary-export $summaryHost $script
   }
   else {
-    # /scripts is the mounted loadtest dir, so the summary written under
-    # /scripts/results/... lands back on the host in $outDir.
     $summaryInner = "/scripts/results/$Tag/$Scenario/$name.json"
     docker run --rm `
       --network $net `
@@ -194,11 +163,10 @@ foreach ($s in $Steps) {
   }
 }
 
-# ---- Teardown --------------------------------------------------------------
 if (-not $KeepUp) {
   Write-Host ""
-  Write-Host "=== tearing down stack (pass -KeepUp to keep it) ===" -ForegroundColor Cyan
-  Push-Location $repoRoot; docker compose down --remove-orphans; Pop-Location
+  Write-Host "=== tearing down stack and its volumes (pass -KeepUp to keep it) ===" -ForegroundColor Cyan
+  Push-Location $repoRoot; docker compose down -v --remove-orphans; Pop-Location
 }
 
 Write-Host ""

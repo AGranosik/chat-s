@@ -16,17 +16,14 @@ import (
 	"chat-s/internal/storage"
 )
 
-// The full vertical slice: client A's frame travels send → service (tx) →
-// relay drain → hub → client B's socket.
 func TestWS_RoundTripBetweenTwoClients(t *testing.T) {
-	st := newStack(t, nil) // nil → relay feeds the real hub (production path)
+	st := newStack(t, nil)
 
 	a := st.dialWS(t, seedRoomID)
 	b := st.dialWS(t, seedRoomID)
 
 	send(t, a, seedUserID, "hi from A")
 
-	// Both clients are in the room, so both receive the broadcast.
 	clients := map[string]*websocket.Conn{"A": a, "B": b}
 	for name, conn := range clients {
 		msg := readMessage(t, conn, 5*time.Second)
@@ -39,13 +36,12 @@ func TestWS_RoundTripBetweenTwoClients(t *testing.T) {
 	}
 }
 
-// After a round-trip the message is durable and served by the history endpoint.
 func TestWS_MessageAppearsInHistory(t *testing.T) {
 	st := newStack(t, nil)
 
 	a := st.dialWS(t, seedRoomID)
 	send(t, a, seedUserID, "persist me")
-	_ = readMessage(t, a, 5*time.Second) // wait until fan-out (so it's committed)
+	_ = readMessage(t, a, 5*time.Second)
 
 	var msgs []models.Message
 	st.getJSON(t, "/api/rooms/"+seedRoomID+"/messages", &msgs)
@@ -54,25 +50,17 @@ func TestWS_MessageAppearsInHistory(t *testing.T) {
 	}
 }
 
-// At-least-once recovery: an undispatched outbox row — e.g. one left behind by a
-// crash after commit but before fan-out — is rediscovered by the relay's scan
-// and delivered to connected clients (the Phase 5 guarantee). We connect and
-// confirm the client first (a warmup round-trip), so the assertion is about the
-// relay finding the row on a poll, not about connect/register timing.
 func TestWS_UndispatchedRowIsRediscoveredAndDelivered(t *testing.T) {
-	st := newStack(t, nil) // clean DB, relay + real hub running
+	st := newStack(t, nil)
 	ctx := context.Background()
 
 	conn := st.dialWS(t, seedRoomID)
 
-	// Warmup: prove the client is registered and the full pipeline works.
 	send(t, conn, seedUserID, "warmup")
 	if got := readMessage(t, conn, 5*time.Second); got.Body != "warmup" {
 		t.Fatalf("warmup = %q, want 'warmup'", got.Body)
 	}
 
-	// Now strand a message + outbox row by enqueuing directly — the relay finds
-	// it on its next poll, exactly as it would on crash recovery.
 	msg := models.Message{RoomID: seedRoomID, UserID: seedUserID, Body: "stranded"}
 	err := testStore.WithTx(ctx, func(tx pgx.Tx) error {
 		if err := storage.InsertMessage(ctx, tx, &msg); err != nil {
@@ -85,7 +73,7 @@ func TestWS_UndispatchedRowIsRediscoveredAndDelivered(t *testing.T) {
 		t.Fatalf("seed undispatched: %v", err)
 	}
 
-	got := readMessage(t, conn, 8*time.Second) // poll interval ~2s + slack
+	got := readMessage(t, conn, 8*time.Second)
 	if got.Body != "stranded" {
 		t.Fatalf("rediscovered message = %q, want 'stranded'", got.Body)
 	}
