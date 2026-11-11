@@ -10,7 +10,7 @@ param(
   [int]      $Users        = 50,
   [int]      $ConnUsers    = 2,
 
-  [string]   $Tag          = "10x100m",
+  [string]   $Tag          = "15x100m",
   [int]      $Ramp         = 180,
   [int]      $Settle       = 5,
   [int]      $Duration     = 30,
@@ -45,8 +45,8 @@ if ($NativeK6) {
   }
 }
 
-$serverServices   = @(1..10 | ForEach-Object { "server$_" })
-$serverContainers = @(1..10 | ForEach-Object { "chat-server-$_" })
+$serverServices   = @(1..15 | ForEach-Object { "server$_" })
+$serverContainers = @(1..15 | ForEach-Object { "chat-server-$_" })
 $readyPath = '/healthz'
 
 function Wait-Ready([int] $TimeoutSec) {

@@ -6,14 +6,18 @@ socket; each user sends one message every `SEND_INTERVAL` seconds. Connections
 load for `DURATION` seconds — opening N sockets on the same tick swamps the accept
 backlog and most handshakes get reset, which masquerades as a server ceiling.
 
-## Scenario matrix
+## Scenario presets
 
-| rooms | users/room | total VUs (= sockets) |
-|------:|-----------:|----------------------:|
-| 1     | 2 / 5 / 10 | 2 / 5 / 10            |
-| 10    | 2 / 5 / 10 | 20 / 50 / 100         |
-| 100   | 2 / 5 / 10 | 200 / 500 / 1000      |
-| 1000  | 2 / 5 / 10 | 2000 / 5000 / 10000   |
+| script | rooms | users/room | sockets |
+|--------|------:|-----------:|--------:|
+| `run-clean.ps1` (default) | 10 | 5 | 50 |
+| `run-clean.ps1 -Full` | 300 / 1000 | 10 | 3,000 / 10,000 |
+| `run-matrix.ps1` (default) | 10 / 100 / 100 | 5 / 10 / 100 | every rooms × users pair, 50 – 10,000 |
+| `run-limits.ps1 -Scenario tput` | `-Rooms` (100) | `-Users` (50) | 5,000 by default; the committed sweep used 500 × 15 |
+| `run-limits.ps1 -Scenario conn` | sockets ÷ `-ConnUsers` | `-ConnUsers` (2) | each `-Steps` value |
+
+`run-matrix.ps1` lists 100 rooms twice in its defaults, so the 100-room cells run
+twice and the second run overwrites the first one's JSON.
 
 ## Prerequisites
 
@@ -39,7 +43,7 @@ Single scenario:
 k6 run -e ROOMS=10 -e USERS=5 -e RAMP=150 -e DURATION=30 loadtest/chat_load.js
 ```
 
-Full matrix (writes `loadtest/results/<scenario>.json`):
+Full matrix (writes `loadtest/results/rooms<R>_users<U>.json`):
 ```powershell
 ./loadtest/run-matrix.ps1
 ./loadtest/run-matrix.ps1 -Rooms 1,10 -Users 2,5 -Ramp 60 -Duration 60   # subset
@@ -114,21 +118,23 @@ Measured on this machine with the generator on the same host, so treat the
 absolutes as *relative*. Full table, diagnosis and open questions in
 [`../LOAD_TEST_ANALYSIS.md`](../LOAD_TEST_ANALYSIS.md).
 
-Earlier sweep (2 s relay poll, 100-row batches; re-run in progress against the
-1 s / 500-row relay): 7,500 sockets (500 rooms x 15 users), send interval
-10 -> 1 s.
+Sweep committed 2026-11-11 (`results/300m/tput/`): 7,500 sockets (500 rooms x
+15 users), send interval 10 -> 1 s, stack wiped before every step.
 
-- **Message-rate ceiling ~ 28,100 delivered msg/s** (1,875 sends/s x 15
-  recipients) at 100 % completeness, but p95 is already 7.4 s there. The
-  **latency-clean point is ~ 18,800 msg/s** (1,250 sends/s, p95 1.8 s).
-- **Past the knee it degrades instead of plateauing:** at 2,500 sends/s delivery
-  falls to 21,627 msg/s (57.7 % complete, p95 42 s); at 3,700 sends/s it is 5 %
-  complete with ~3,100 socket errors (42 % of sockets).
-- Handshakes were 100 % and connect p95 2 ms in every step, so the limit is the
-  delivery path (outbox relay -> single hub goroutine -> socket writes), not the
-  connection count.
-- **Not measured yet:** the `conn` ceiling at 300 MB, and whether the collapse is
-  an OOM kill. Capture `docker stats` and `docker inspect chat-server --format
+- **Sustainable ceiling ~ 28,100 delivered msg/s** (1,873 sends/s x 15
+  recipients) at the 4 s step: 100 % complete, p95 2.0 s, max 2.8 s, every k6
+  threshold green. The **latency-clean point is ~ 18,750 msg/s** (1,250 sends/s,
+  p95 1.24 s).
+- **The 3 s step is complete but not sustainable:** 37,510 msg/s delivered, but
+  p95 22 s. The backlog only cleared because senders stopped after 30 s.
+- **Past that it collapses:** at 3,744 sends/s delivery is 59.8 % complete with
+  1,455 socket errors (19 % of sockets). At 7,363 sends/s it is 4.5 % complete
+  with 4,742 errors (63 %).
+- Handshakes were 100 % and connect p95 2 ms in every step, so the limit is not the
+  connection count. The drops look like the server's 60 s pong deadline: the
+  shortest session in both failed steps is exactly 60.0 s.
+- **Not measured yet:** the `conn` ceiling at 300 MB, and which component
+  saturates first. Capture `docker stats` and `docker inspect chat-server --format
   '{{.RestartCount}} {{.State.OOMKilled}}'` per step on the next run.
 
 ## What it measures

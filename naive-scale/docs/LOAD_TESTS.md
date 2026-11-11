@@ -53,8 +53,9 @@ instance. Everything ran on one Windows/Docker Desktop host (AMD Ryzen 7 4800HS,
 with each other.
 
 The instance count of `5x100m` comes from the directory tag; the repo does not
-record the compose file used for that sweep. The 10-instance compose and nginx
-files in the working tree match `10x100m`.
+record the compose file used for that sweep. The compose and nginx
+files in the working tree now run 15 instances (`15x100m`); `10x100m` used
+the same files with `server1..10` only.
 
 ## Headline results
 
@@ -167,13 +168,13 @@ instances, where only the instance count changed.
   `BASELINE.md` and `LOAD_TEST_ANALYSIS.md`.
 - `loadtest/README.md` and `BASELINE.md` still describe the retired 3 × 200 MB
   setup and its default `-Tag 3x200m`; `run-limits.ps1` now defaults to
-  `-Tag 10x100m`.
+  `-Tag 15x100m`.
 
 ## Reproducing the 7 500-socket sweep
 
 ```powershell
 ./loadtest/run-limits.ps1 -Scenario tput -Rooms 500 -Users 15 -Steps 10,8,6,4,3,2,1
-./loadtest/summarize.ps1  -Dir loadtest/results/10x100m/tput
+./loadtest/summarize.ps1  -Dir loadtest/results/15x100m/tput
 ```
 
 Each run recreates the stack and **wipes the database**; each step takes about

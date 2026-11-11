@@ -24,15 +24,14 @@ func CreateProducer(topic string) (*KafkaProducer, error) {
 	config.Producer.Return.Successes = true
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Errors = true
-	config.Producer.Flush.Messages = 100                     // flush every 100 messages
-	config.Producer.Flush.Frequency = 500 * time.Millisecond // or every 500ms
+	config.Producer.Flush.Messages = 100
+	config.Producer.Flush.Frequency = 500 * time.Millisecond
 
 	producer, err := sarama.NewAsyncProducer(strings.Split(brokers, ","), config)
 
 	if err != nil {
 		return nil, err
 	}
-	// Handle acks and errors in background
 	go func() {
 		for range producer.Successes() {
 			log.Printf("success.")

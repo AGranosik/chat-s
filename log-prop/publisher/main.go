@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// point of this service to learnd workinf with kafka and golang channels
 func main() {
 	const numberMessages = 1_000_000
 	const chunk = 1_0000

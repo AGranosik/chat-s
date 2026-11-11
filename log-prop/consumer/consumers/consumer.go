@@ -50,14 +50,12 @@ func CreateConsumer(topic, groupID string) (*KafkaConsumer, error) {
 func (c *KafkaConsumer) Start(ctx context.Context) {
 	handler := &consumerGroupHandler{decoder: c.decoder}
 
-	// Handle client-level errors
 	go func() {
 		for err := range c.client.Errors() {
 			log.Printf("consumer error: %v", err)
 		}
 	}()
 
-	// Consume in background, restarting on rebalance
 	go func() {
 		for {
 			if err := c.client.Consume(ctx, []string{c.topic}, handler); err != nil {

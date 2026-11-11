@@ -22,8 +22,8 @@ The adaptations are all in the runner and the read-off:
 
 - **`run-limits.ps1`** wipes the whole stack (`docker compose down -v`: all
   servers, Postgres and Redis with their volumes) and brings it back up before
-  every step, waits for `server1..10` and nginx, and resolves the compose network
-  from `chat-server-1`. Default `-Tag` is `10x100m`.
+  every step, waits for `server1..15` and nginx, and resolves the compose network
+  from `chat-server-1`. Default `-Tag` is `15x100m`.
 - **Delivery path.** A message is persisted on whichever instance the sender is
   pinned to, its outbox relay picks it up on the **~2 s poll** (unchanged latency
   floor), and `hub.Broadcast` **publishes to Redis** `room:<id>`; every instance

@@ -36,6 +36,7 @@ services:
       POSTGRES_USER: chat
       POSTGRES_PASSWORD: chat
       POSTGRES_DB: chat
+    command: ["postgres", "-c", "max_connections=200"]
     ports:
       - "5432:5432"
     healthcheck:
@@ -106,6 +107,26 @@ services:
     <<: *server
     container_name: chat-server-10
 
+  server11:
+    <<: *server
+    container_name: chat-server-11
+
+  server12:
+    <<: *server
+    container_name: chat-server-12
+
+  server13:
+    <<: *server
+    container_name: chat-server-13
+
+  server14:
+    <<: *server
+    container_name: chat-server-14
+
+  server15:
+    <<: *server
+    container_name: chat-server-15
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -120,6 +141,11 @@ services:
       - server8
       - server9
       - server10
+      - server11
+      - server12
+      - server13
+      - server14
+      - server15
     ports:
       - "80:80"
     ulimits:

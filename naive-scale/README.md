@@ -32,8 +32,8 @@ internal/outbox/       relay.go — poll outbox; drain → Broadcaster (publishe
 internal/storage/      postgres.go, messages.go, outbox.go, rooms.go, users.go
 internal/models/       message.go, room.go, user.go
 migrations/            0001_init.sql (goose, embedded)
-nginx/nginx.conf       REST round-robin; /ws hashed by ?room= (room affinity) across server1..10
-docker-compose.yml     postgres + redis + 10x server (100m each) + nginx
+nginx/nginx.conf       REST round-robin; /ws hashed by ?room= (room affinity) across server1..15
+docker-compose.yml     postgres + redis + 15x server (100m each) + nginx
 loadtest/              k6 ws load test (ported from single-instance; 3x200m + Redis)
 ```
 
@@ -53,7 +53,7 @@ loadtest/              k6 ws load test (ported from single-instance; 3x200m + Re
 
 ```bash
 go run ./cmd/server     # run one instance locally (needs Postgres; see docker-compose.yml)
-docker compose up       # full stack: postgres + redis + 10 servers + nginx on :80
+docker compose up       # full stack: postgres + redis + 15 servers + nginx on :80
 go build ./...          # sanity build
 ```
 

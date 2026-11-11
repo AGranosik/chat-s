@@ -82,7 +82,8 @@ A single `hub.Run()` goroutine owns the `rooms` map and selects over the
 channels, so there is no shared-memory contention. Each client has a 256-slot send
 channel drained by its own write pump (10 s write deadline, ping every 54 s). The
 hub's send to that channel is **blocking**, so one client that stops reading can
-stall the hub goroutine, and with it every room — see "Measured limits".
+stall the hub goroutine, and with it every room. Combined with a write error, the
+same blocking send can deadlock the hub (see "Known limitations").
 
 ## The outbox (why persist and broadcast must be atomic)
 
@@ -98,7 +99,7 @@ The transactional outbox closes the gap:
 ```
 outbox
  ├─ id            bigserial primary key
- ├─ room_id       text/uuid          // partition + ordering key
+ ├─ room_id       uuid               // partition + ordering key
  ├─ payload       jsonb              // the message event to broadcast
  ├─ created_at    timestamptz default now()
  └─ dispatched_at timestamptz        // NULL until the relay fans it out
@@ -129,6 +130,22 @@ This keeps the project's single-instance promise — the relay drains to the
 in-memory hub, no external broker is introduced — while making the core flow
 crash-safe and setting up the multi-node swap below.
 
+## Scaling seam
+
+The relay depends on one interface, not on the hub:
+
+```go
+type Broadcaster interface {
+	Broadcast(roomID string, msg models.Message)
+}
+```
+
+`chat.Broadcaster` is defined in `internal/chat/service.go`, and `hub.Hub`
+implements it. `chat.Service` only writes to Postgres. To reach clients on other
+processes, swap the `Broadcaster` the relay is given; nothing else in the write
+path changes. `../naive-scale` does exactly that, with a Redis pub/sub
+`Broadcaster` behind the same interface.
+
 ## Data model (initial)
 
 | table      | key columns                                            |
@@ -154,7 +171,7 @@ The Go server is the system under test and has the tightest budget.
 | postgres | 600 MB |   2 | no volume: a fresh container is an empty database  |
 | nginx    | 512 MB |   1 | `worker_connections` 65536, `nofile` 262144        |
 
-nginx's limits are raised so it is never the first wall: a proxied websocket uses
+nginx's connection limits are raised so they are never the first wall: a proxied websocket uses
 two connection slots (client side and upstream side), so `worker_connections
 65536` allows roughly 32k sockets per worker, and `proxy_read_timeout` is 3600 s to
 keep long-lived sockets open.
@@ -165,24 +182,72 @@ recreating the stack always gives a clean database.
 ## Measured limits
 
 Full data and caveats are in [`../LOAD_TEST_ANALYSIS.md`](../LOAD_TEST_ANALYSIS.md).
-With 7,500 sockets in 15-member rooms the server delivered up to about 28,100
-frames/s (1,875 sends/s) at full completeness; p95 latency stayed at the ~1.8 s
-poll floor only up to about 18,800 frames/s. That sweep ran with the earlier relay
-(2 s poll, 100-row batches); the relay now polls every 1 s with 500-row batches
-and the sweep is being re-run, so these figures are provisional. Past the knee, delivery falls as load
-rises and sockets start to error, while handshakes stay healthy.
+The sweep used 7,500 sockets in 15-member rooms. It was committed 2026-11-11, and
+the stack was wiped before every step.
+
+- **Sustainable:** about 28,100 delivered frames/s (1,873 sends/s), p95 2.0 s,
+  slowest message 2.8 s.
+- **Latency-clean:** about 18,750 frames/s (1,250 sends/s), p95 1.24 s, against a
+  poll floor of about 1.04 s p95.
+- **Past ~2,500 sends/s** the backlog outlives the send window. At 3,744 sends/s
+  19% of sockets drop, and at 7,363 sends/s 63% do. Handshakes stay at 100%
+  throughout.
 
 Design points that shape that behaviour:
 
 - **Fan-out multiplies cost.** Every accepted message becomes one socket write per
-  room member (the sender included), all performed by one hub goroutine.
+  room member (the sender included), all queued by one hub goroutine.
 - **Latency floor.** The relay polls every 1 s (`pollInterval` in
   `internal/outbox/relay.go`), so a message waits up to a second plus its drain
-  time; a p95 well above that means the relay is queueing.
+  time. A p95 well above that means something on the path is queueing.
+- **Ingest runs on the read goroutine.** `ReadPump` calls `HandleIncoming`
+  inline: one Postgres transaction per message, through a pool shared by every
+  socket and the relay. A slow database slows reads, and that includes pongs.
 - **No back-pressure toward senders.** Ingest keeps accepting messages while the
   delivery path is saturated, so the outbox backlog grows unbounded.
 - **Blocking hub send.** A stalled client can block the hub (see "The hub").
 
-Open questions: whether the collapse at about twice the ceiling is a 300 MB OOM
-kill or the blocked hub, and what the socket-count ceiling is at 300 MB. Neither
-has been measured yet.
+The sockets that drop under overload look like the 60 s pong deadline firing on
+read loops stuck behind their own transactions (see "Known limitations" and the
+analysis). Open questions: which component saturates first (Postgres CPU, the
+relay, the hub or nginx), whether the 1 s collapse includes an OOM kill, and the
+socket-count ceiling at 300 MB. None of these has been measured.
+
+## Known limitations
+
+These were found by reading the code and none are fixed. The project is a PoC, and
+its data is wiped between runs.
+
+- **Hub deadlock after a write error.** `WritePump` returns on any write error,
+  including its 10 s write deadline, and closes the socket. The socket's
+  `ReadPump` then fails and calls `Unregister`, which waits on the hub goroutine.
+  If the hub is blocked at that moment on `c.send <- payload` for the same client,
+  neither side can progress: the client's 256-slot channel is full and has no
+  reader any more. Every room stops receiving until the process restarts. This is
+  most likely under overload, when channels fill. The load tests can't show it,
+  because every step wipes the stack.
+- **About 6 s to read each pong.** `ReadPump` sets a 60 s read deadline that only
+  the pong handler extends, and `WritePump` pings every 54 s. The same goroutine
+  runs each message's transaction, so a read loop more than ~6 s behind misses
+  the deadline and the server drops the socket.
+- **Silent disconnects.** `ReadPump` logs only `IsUnexpectedCloseError`, which is
+  false for timeouts and resets, and `WritePump` logs nothing. The server logs
+  don't show why a socket closed.
+- **Pool and memory are not configured.** The pgx pool is `max(4, NumCPU)`
+  connections (16 on a 16-CPU Docker engine), shared by up to 7,500 read
+  goroutines and the relay. `GOMEMLIMIT` is unset, so the GC does not aim for the
+  300 MB limit.
+- **The relay holds a transaction across the hand-off.** `DispatchBatch` keeps its
+  `FOR UPDATE` row locks open while the hub fans out. A stalled hub therefore
+  leaves a long-running transaction in Postgres.
+- **The outbox only grows.** Dispatched rows are never deleted. `dispatched_at` is
+  indexed, so stamping a row cannot be a HOT update and leaves dead index entries
+  for vacuum.
+- **Each message is JSON-encoded twice.** It is encoded for the outbox, decoded by
+  the relay, and encoded again by the hub, all on the serial delivery path.
+- **History ordering doesn't match its index.** `History` orders by `id desc`
+  within a room, but the index is `(room_id, created_at desc, id desc)`. Postgres
+  must either sort the room's rows or walk the primary key backwards and filter by
+  room. The load test doesn't exercise history.
+- **No authentication.** `user_id` comes from the client frame, and `CheckOrigin`
+  accepts every origin.
