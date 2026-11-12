@@ -1,0 +1,344 @@
+{
+    "root_group": {
+        "checks": {
+            "ws handshake 101": {
+                "name": "ws handshake 101",
+                "path": "::ws handshake 101",
+                "id": "ea93306d778e5fa4d95326bd5ce13a44",
+                "passes": 1500,
+                "fails": 0
+            }
+        },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "room created": {
+                            "passes": 100,
+                            "fails": 0,
+                            "name": "room created",
+                            "path": "::setup::room created",
+                            "id": "6240e26abbf060beb900607fc3cf722f"
+                        },
+                        "user created": {
+                            "name": "user created",
+                            "path": "::setup::user created",
+                            "id": "bd2b00ce50ad9f3bd4cf332255cdea5d",
+                            "passes": 15,
+                            "fails": 0
+                        }
+                    }
+            }
+        }
+    },
+    "metrics": {
+        "vus": {
+            "value": 1,
+            "min": 1,
+            "max": 1500
+        },
+        "msgs_received": {
+            "rate": 929.8491195431529,
+            "count": 229619,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "http_reqs": {
+            "count": 115,
+            "rate": 0.4656959953116362
+        },
+        "ws_errors": {
+            "count": 17,
+            "rate": 0.06884201669824187,
+            "thresholds": {
+                "count<=8": true
+            }
+        },
+        "ws_msgs_received": {
+            "count": 229619,
+            "rate": 929.8491195431529
+        },
+        "http_req_waiting": {
+            "p(95)": 2.7023197,
+            "avg": 2.3022541304347826,
+            "min": 1.900585,
+            "med": 2.259909,
+            "max": 4.193146,
+            "p(90)": 2.5708528
+        },
+        "data_sent": {
+            "count": 2822041,
+            "rate": 11427.940802654304
+        },
+        "checks": {
+            "passes": 1615,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "msgs_sent": {
+            "rate": 121.49806041160888,
+            "count": 30003,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "data_received": {
+            "count": 41925233,
+            "rate": 169777.5053096283
+        },
+        "http_req_duration": {
+            "avg": 2.4518664608695646,
+            "min": 1.995909,
+            "med": 2.396493,
+            "max": 4.529135,
+            "p(90)": 2.7361486,
+            "p(95)": 2.8501428
+        },
+        "iteration_duration": {
+            "max": 244881.998508,
+            "p(90)": 205018.03182119998,
+            "p(95)": 224945.78890259998,
+            "avg": 70342.84201947019,
+            "min": 1000.025883,
+            "med": 1001.077273
+        },
+        "msg_e2e_latency": {
+            "avg": 30460.055866457045,
+            "min": 475,
+            "med": 35169,
+            "max": 44972,
+            "p(90)": 42589,
+            "p(95)": 43505,
+            "thresholds": {
+                "p(95)<2500": true,
+                "p(99)<3500": true
+            }
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "max": 0.387509,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0.0033696434782608696,
+            "min": 0
+        },
+        "http_req_sending": {
+            "p(95)": 0.08019989999999999,
+            "avg": 0.028789565217391316,
+            "min": 0.012514,
+            "med": 0.016712,
+            "max": 0.145582,
+            "p(90)": 0.0686924
+        },
+        "http_req_receiving": {
+            "min": 0.075386,
+            "med": 0.104362,
+            "max": 0.336274,
+            "p(90)": 0.1948992,
+            "p(95)": 0.2035061,
+            "avg": 0.12082276521739131
+        },
+        "http_req_tls_handshaking": {
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0
+        },
+        "ws_sessions": {
+            "count": 1500,
+            "rate": 6.074295591021341
+        },
+        "vus_max": {
+            "min": 1500,
+            "max": 1500,
+            "value": 1500
+        },
+        "ws_msgs_sent": {
+            "count": 30003,
+            "rate": 121.49806041160888
+        },
+        "ws_session_duration": {
+            "avg": 154707.76065444187,
+            "min": 60248.018763,
+            "med": 154957.5838905,
+            "max": 244881.530323,
+            "p(90)": 226897.4196284,
+            "p(95)": 235889.75459705
+        },
+        "iterations": {
+            "count": 3325,
+            "rate": 13.464688560097308
+        },
+        "http_req_blocked": {
+            "p(90)": 0.0059776000000000004,
+            "p(95)": 0.006758599999999998,
+            "avg": 0.027995391304347812,
+            "min": 0.002464,
+            "med": 0.003858,
+            "max": 2.721822
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 115,
+            "value": 0
+        },
+        "ws_connecting": {
+            "avg": 1.7249665539999999,
+            "min": 1.061756,
+            "med": 1.601159,
+            "max": 28.46929,
+            "p(90)": 2.1145797,
+            "p(95)": 2.2589713999999996,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 2.4518664608695646,
+            "min": 1.995909,
+            "med": 2.396493,
+            "max": 4.529135,
+            "p(90)": 2.7361486,
+            "p(95)": 2.8501428
+        }
+    },
+    "setup_data": {
+        "ramp_s": 180,
+        "rooms": [
+            "e6ed36ac-1157-46a8-93f6-da230247d1d8",
+            "c9c8a6d0-87a5-4b29-a197-4d8123558673",
+            "9424d734-2944-46a7-9809-031b7ebe7df5",
+            "80f95abd-a515-4c46-bd2a-c6f67a0df7c8",
+            "a86e3721-7f39-413e-ba83-07a0014de0dd",
+            "209e7e4c-ed35-419f-8e1e-2209542432a6",
+            "3ec73242-b8c5-4994-a92d-e9ddfa5662de",
+            "e5942068-f909-40e2-8d7c-243e512ee9b8",
+            "d6f1d0d0-7d0e-4611-a70b-7f3a6b1a3dfa",
+            "2e5285da-8792-4fd6-ad3a-57a3a2dde7af",
+            "9a6c2c70-ccb1-4f2a-8fff-83ee4563aa55",
+            "d20f5e8e-eae5-4167-b8fb-7693d9cd8e87",
+            "ad4749cc-549c-40bf-99a4-5c3295929521",
+            "402e49c5-3930-4eff-857f-13e0f4a739e7",
+            "5fb32682-20be-4988-a2af-42f35330d94e",
+            "69d51438-1856-4c0f-baab-77f1de2004cf",
+            "dfbccc82-ebe0-4321-bcd6-ecbc71003415",
+            "7d599469-86a0-486f-849a-ca35fb6935b5",
+            "227e740f-15eb-486d-8bdd-b1854b14bc5b",
+            "010a074f-4d36-429d-a39f-bd53fb9dbf51",
+            "cc3b01cf-728b-4459-b498-460da8e5e2c1",
+            "70722ea1-e36b-4bcc-b12e-11b9a23351d4",
+            "34e4e83d-4591-4bb1-bd77-f64d1e523e35",
+            "50edc3ec-ec5f-4784-8046-8e7470f5bc7d",
+            "adfd6094-4fb4-40fa-a0fa-aba221a1f036",
+            "879bce71-a98c-4603-8a1e-06ca936f1b46",
+            "52e5846a-8cc3-4dfe-bcfe-3f8ecd931762",
+            "93f307a4-a75d-4a7d-b436-5dfa1787515a",
+            "6ede3c86-fc39-4635-9560-4234f5e70ee9",
+            "cacaf8d6-d7cf-4d18-b3ed-55039ca3a6cd",
+            "57ef3252-fb44-479a-9885-4085dbbe692d",
+            "1f8e02be-6b7c-41c1-9d6f-4e2197b3cd03",
+            "3651dbd8-e650-4512-ba05-aa655ec820f3",
+            "06698f7b-e7a4-4fdb-b963-8188ea5da65d",
+            "bb9b56c2-17bb-44d8-ab36-6310015f34c1",
+            "26205d19-8a81-40a7-ae43-da2011c4e810",
+            "98b573f6-b2dd-4f3c-9d46-d5179327155c",
+            "5bbec852-2764-4fb3-b539-781acffbc9e3",
+            "48d28b33-57d8-4789-9fe8-5d580c006350",
+            "92285df3-44af-44cb-8ee4-9252d508a929",
+            "f1664bf1-df56-4911-a061-be365e0ea720",
+            "0499e1ec-4292-4c0e-9d06-ab44289d909d",
+            "c7aa0f73-8a14-4c05-84ff-d70eb8dad27b",
+            "105fceeb-eee9-4573-ac71-1abea9245ec9",
+            "c6e957de-bda1-402b-b233-7d03b669e4aa",
+            "64115ed1-c186-4e0e-9923-52f6803ee8c0",
+            "48b6d4a4-4dcc-4423-a017-cb848f7ad116",
+            "a300be57-2005-48aa-8384-3e379ec1464b",
+            "518c7e18-d3d3-4dca-b1dc-1cb7d292ceb7",
+            "60009b3d-9251-4e8c-9c7d-7e48deacfbbd",
+            "cc07fe43-5eb6-4972-b42c-ca267ed6f505",
+            "0f216f22-7c2e-4409-99ca-2b411fe129ea",
+            "20d3eabc-7fef-4b8f-8cb0-46e581c16d34",
+            "9765c4b6-dc73-4344-96a9-092ec024b470",
+            "f41a2235-9c4c-4e69-af04-fbef847a8b45",
+            "3f6ed426-3a02-429f-ae57-83f806906837",
+            "085e6c1b-c69f-4fd9-a95f-547bbc987958",
+            "3b2ecbce-6a86-4896-9a85-f4b033ddefaa",
+            "48188aa7-4ca9-4932-99b8-5f1a24178bf0",
+            "56338e6c-73c2-408a-a8fe-d979384a3dec",
+            "61823da5-fd68-4b3f-9ca4-ec33fe5491de",
+            "cd7eb923-86a1-4332-97a4-750f38c5af27",
+            "a2a07284-e76d-4e0a-864b-399968ac6905",
+            "e2524c64-dff2-4c27-84dc-5d99c00fc359",
+            "97278af3-d7bc-43ab-b44e-8ed938217872",
+            "4c5a0300-4eaf-4819-9806-556dd08bfd22",
+            "53adc79d-ca7c-477a-a1ee-874401447640",
+            "d6d94d78-8cb4-4718-9952-9b274dfd193e",
+            "8a8d0273-7c0c-45dd-a2c0-90feed9a92e7",
+            "f858a38e-8354-4241-95fe-ebf48d65d589",
+            "bc50de99-995c-4c64-bc53-fec00b4f0254",
+            "ee8c6dac-801f-40a1-ab00-a96266b71833",
+            "16eab1ac-f94f-4d81-9243-2e8045a3ab46",
+            "57d38189-244b-4cdf-bf25-cc7a4bb47b59",
+            "d622209e-28e2-4297-80ef-834f46eaf27f",
+            "9f920cd9-7639-4aa0-a337-66f4d0ffbcc4",
+            "82fe4b12-ee3f-4309-86f1-2ff00c6a61e5",
+            "6672a5ce-5d26-4022-843f-097b87eca1bc",
+            "d21a7d6f-16a0-4a74-8c95-0ce5fb744a84",
+            "1c1b1862-65e6-4482-a33d-227bfdef07b2",
+            "1edd9df0-43ba-46c7-8ee3-5ce15320194d",
+            "d3213e70-fb2f-4cdf-babb-0f9483d0a31b",
+            "11347a03-0f0d-4ea1-ac7e-7fd2c3a69557",
+            "d1eba415-bd68-4ae7-8b1e-62ef5636dd38",
+            "09e39686-17b0-4b4d-80e4-dc8a1d40a5bf",
+            "3c415736-3e4f-4a83-b305-371f2fed9b04",
+            "1dd206d6-227f-4bef-a67e-4d6f8f618823",
+            "9e67255e-0d54-476e-a262-41c7e5790a5b",
+            "0a8ac718-6fa3-47e4-8fa9-777c6c70dda2",
+            "7798fc7a-65be-4bf5-844d-fac001667dc5",
+            "1cf6bee3-582e-4391-b083-f1ee9b4d107a",
+            "e9221c3b-232b-4dfd-bad9-ac8258bb309b",
+            "26d10b13-b69c-4b58-b2eb-7903a1a249e9",
+            "79ecdbc8-b97e-498c-94e9-5ec3df6664c0",
+            "1efebd98-07a9-451f-b3da-df64a7a54909",
+            "d358c0c2-db2d-4b01-9e14-37f20fb05acd",
+            "1a09cb3e-705a-4cff-9e4f-960ee408e823",
+            "c3daf796-f5b8-4e33-be45-8bb5831e5f24",
+            "4dda172e-426a-4166-af1d-63429df0ce45",
+            "1369f7c7-a041-4eaa-b350-7a3537272720"
+        ],
+        "send_interval_s": 1.5,
+        "settle_s": 5,
+        "users": [
+            "e9bd5c48-968f-4656-b031-a3990320a06a",
+            "1cbf4588-3ca8-4cb5-b4bd-f0f0a4a3ecc5",
+            "b8a4f33f-ef83-45fe-9d39-6a59c199aeae",
+            "13d489d6-7dc4-48ac-a11e-aaf609399572",
+            "f64f00d8-7539-423a-990f-b99b15318fc3",
+            "d9a9c3d9-751a-4f9b-9e7d-66422d9ea477",
+            "fe863a9a-4471-473b-97ea-a1de017cd879",
+            "c768c1fa-8114-45ec-b6c6-efdda49cd6b2",
+            "976362c4-c52b-4a92-bef9-b25ed565f35f",
+            "fe49aa03-13cc-4181-a41e-58fc805fa6c7",
+            "739375bf-04ca-4fc4-9f8f-68df51aff263",
+            "2cf4bf88-22ce-4e53-9258-94fafea3bd6d",
+            "6e2d411b-6331-4bc5-8f85-3af848e3b996",
+            "e29a7e83-13d7-4b4c-ba61-7615e1dcb8ab",
+            "7b2cb3bc-1820-434d-9a0b-8b49dc9a378d"
+        ],
+        "drain_s": 30,
+        "duration_s": 30,
+        "mode": "tput"
+    }
+}

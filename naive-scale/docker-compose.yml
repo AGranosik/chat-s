@@ -25,8 +25,8 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 100m
-        cpus: "0.50"
+        memory: 50m
+        cpus: "0.17"
 
 services:
   postgres:
@@ -87,46 +87,6 @@ services:
     <<: *server
     container_name: chat-server-5
 
-  server6:
-    <<: *server
-    container_name: chat-server-6
-
-  server7:
-    <<: *server
-    container_name: chat-server-7
-
-  server8:
-    <<: *server
-    container_name: chat-server-8
-
-  server9:
-    <<: *server
-    container_name: chat-server-9
-
-  server10:
-    <<: *server
-    container_name: chat-server-10
-
-  server11:
-    <<: *server
-    container_name: chat-server-11
-
-  server12:
-    <<: *server
-    container_name: chat-server-12
-
-  server13:
-    <<: *server
-    container_name: chat-server-13
-
-  server14:
-    <<: *server
-    container_name: chat-server-14
-
-  server15:
-    <<: *server
-    container_name: chat-server-15
-
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -136,16 +96,6 @@ services:
       - server3
       - server4
       - server5
-      - server6
-      - server7
-      - server8
-      - server9
-      - server10
-      - server11
-      - server12
-      - server13
-      - server14
-      - server15
     ports:
       - "80:80"
     ulimits:
