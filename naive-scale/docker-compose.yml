@@ -87,6 +87,14 @@ services:
     <<: *server
     container_name: chat-server-5
 
+  server6:
+    <<: *server
+    container_name: chat-server-6
+
+  server7:
+    <<: *server
+    container_name: chat-server-7
+
   nginx:
     image: nginx:1.27-alpine
     container_name: chat-nginx
@@ -96,6 +104,8 @@ services:
       - server3
       - server4
       - server5
+      - server6
+      - server7
     ports:
       - "80:80"
     ulimits:

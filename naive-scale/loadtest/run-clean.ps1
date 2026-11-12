@@ -53,7 +53,7 @@ while ((Get-Date) -lt $deadline) {
 }
 if (-not $ready) {
   Write-Error "server never became healthy within ${ReadyTimeout}s"
-  Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3 server4 server5; Pop-Location
+  Push-Location $repoRoot; docker compose logs --tail 50 server1 server2 server3 server4 server5 server6 server7; Pop-Location
   exit 1
 }
 Write-Host "server is up." -ForegroundColor Green
