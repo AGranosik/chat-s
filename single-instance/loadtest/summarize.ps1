@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string] $Dir,
   [string] $Compare,
-  [double] $WsErrTolerancePct = 0.5
+  [double] $WsErrTolerancePct = 0.5,
+  [double] $LatencyP95Ms = 2500
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,13 +43,22 @@ function Get-Rows([string] $d) {
     $sentRate = if ($m.msgs_sent)     { [double]$m.msgs_sent.rate }      else { 0 }
     $recv     = if ($m.msgs_received) { [double]$m.msgs_received.count } else { 0 }
     $recvCount = if ($m.msgs_received) { [long]$m.msgs_received.count }   else { 0 }
-    $recvRate = if ($null -ne $loadS -and $loadS -gt 0) { $recv / $loadS } elseif ($m.msgs_received) { [double]$m.msgs_received.rate } else { 0 }
+    $e2eP50   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.med, 0) }    else { $null }
+    $e2eP95   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.'p(95)', 0) } else { $null }
+    $e2eMax   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.max, 0) }    else { $null }
+
+    $deliverS = $loadS
+    if ($null -ne $loadS -and $null -ne $e2eP95 -and $e2eP95 -ge $LatencyP95Ms) {
+      $backlogS = $e2eMax / 1000.0
+      if ($null -ne $drainS) { $backlogS = [math]::Min($backlogS, [double]$drainS) }
+      $deliverS = $loadS + $backlogS
+    }
+
+    $recvRate = if ($null -ne $deliverS -and $deliverS -gt 0) { $recv / $deliverS } elseif ($m.msgs_received) { [double]$m.msgs_received.rate } else { 0 }
     if ($null -ne $loadS -and $loadS -gt 0) { $sentRate = $sentCount / $loadS }
     $expectedDeliveries = [long]($sentCount * $usersN)
     $wsErr    = if ($m.ws_errors)     { [int]$m.ws_errors.count }        else { 0 }
     $connP95  = if ($m.ws_connecting) { [math]::Round([double]$m.ws_connecting.'p(95)', 0) } else { $null }
-    $e2eP50   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.med, 0) }    else { $null }
-    $e2eP95   = if ($m.msg_e2e_latency) { [math]::Round([double]$m.msg_e2e_latency.'p(95)', 0) } else { $null }
 
     $complete = if ($sent -gt 0 -and $usersN -gt 0) {
       [math]::Round(100.0 * $recv / ($sent * $usersN), 1)
@@ -74,7 +84,9 @@ function Get-Rows([string] $d) {
       conn_p95_ms   = $connP95
       e2e_p50_ms    = $e2eP50
       e2e_p95_ms    = $e2eP95
+      e2e_max_ms    = $e2eMax
       sent_per_s    = [math]::Round($sentRate, 1)
+      deliver_s     = if ($null -ne $deliverS) { [math]::Round($deliverS, 1) } else { $null }
       recv_per_s    = [math]::Round($recvRate, 1)
       mode          = $j.setup_data.mode
       ramp_s        = $rampS
@@ -88,12 +100,12 @@ function Get-Rows([string] $d) {
     }
   }
 
-  $isTput = ($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
+  $isTput = @($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
   if ($isTput) { $rows | Sort-Object sent_per_s } else { $rows | Sort-Object sockets }
 }
 
 function Show-Table($rows, [string] $title, [string] $outDir) {
-  $cols = 'file','mode','rooms','users_per_room','total_clients','ramp_s','settle_s','load_s','drain_s','send_interval_s','messages_sent','expected_deliveries','messages_received','delivery_success_pct','handshake_pct','ws_errors','conn_p95_ms','e2e_p50_ms','e2e_p95_ms','sent_per_s','recv_per_s'
+  $cols = 'file','mode','rooms','users_per_room','total_clients','ramp_s','settle_s','load_s','drain_s','send_interval_s','messages_sent','expected_deliveries','messages_received','delivery_success_pct','handshake_pct','ws_errors','conn_p95_ms','e2e_p50_ms','e2e_p95_ms','e2e_max_ms','sent_per_s','deliver_s','recv_per_s'
 
   $header = "| " + ($cols -join " | ") + " |"
   $sep    = "| " + (($cols | ForEach-Object { "---" }) -join " | ") + " |"
@@ -108,7 +120,7 @@ function Show-Table($rows, [string] $title, [string] $outDir) {
   Write-Host "### $title" -ForegroundColor Cyan
   Write-Host $md
 
-  $isTput = ($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
+  $isTput = @($rows | Where-Object { $_.sent_per_s -gt 0 }).Count -gt 0
   if ($isTput) {
     $best = $rows | Where-Object { $_.ok } | Sort-Object recv_per_s | Select-Object -Last 1
     if ($best) {

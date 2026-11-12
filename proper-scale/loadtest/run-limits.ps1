@@ -43,20 +43,22 @@ if ($NativeK6) {
   }
 }
 
+$serverContainers = @(1..20 | ForEach-Object { "chat-server-$_" })
+$readyPath = '/health/ready'
+
 function Wait-Ready([int] $TimeoutSec) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
-  $consecutiveSuccesses = 0
   while ((Get-Date) -lt $deadline) {
-    try {
-      $response = Invoke-WebRequest "$($HttpBase.TrimEnd('/'))/health/ready" -UseBasicParsing -TimeoutSec 5
-      if ($response.StatusCode -eq 200) {
-        $consecutiveSuccesses++
-        if ($consecutiveSuccesses -ge 6) { return $true }
-      } else {
-        $consecutiveSuccesses = 0
-      }
-    } catch {
-      $consecutiveSuccesses = 0
+    $pending = @()
+    foreach ($container in $serverContainers) {
+      docker exec $container sh -c "wget -q -O /dev/null -T 2 http://127.0.0.1:8080$readyPath >/dev/null 2>&1" | Out-Null
+      if ($LASTEXITCODE -ne 0) { $pending += $container }
+    }
+    if ($pending.Count -eq 0) {
+      try {
+        $response = Invoke-WebRequest "$($HttpBase.TrimEnd('/'))$readyPath" -UseBasicParsing -TimeoutSec 5
+        if ($response.StatusCode -eq 200) { return $true }
+      } catch { }
     }
     Start-Sleep -Seconds 1
   }

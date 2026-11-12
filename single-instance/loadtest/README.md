@@ -84,20 +84,20 @@ stack (`docker compose down -v`: containers and volumes, so Postgres starts empt
 and brings it back up, waiting until the server container and nginx both answer
 `/healthz`. Every step therefore starts from a fresh process and an empty DB;
 `-NoClean` wipes only before the first step. Results go to
-`loadtest/results/<Tag>/<scenario>/`; the default tag is `300m`.
+`loadtest/results/<Tag>/<scenario>/`; the default tag is `150m`.
 
 1. **Connection ceiling** — hold sockets, send nothing; the largest all-green
    step is the limit:
    ```powershell
    ./loadtest/run-limits.ps1 -Scenario conn -Steps 5000,10000,20000,40000,60000
-   ./loadtest/summarize.ps1  -Dir loadtest/results/300m/conn
+   ./loadtest/summarize.ps1  -Dir loadtest/results/150m/conn
    ```
 2. **Message rate at a fixed socket count** — set `-Rooms`/`-Users` so
    `Rooms x Users` equals the connection count to test, then sweep the send
    interval:
    ```powershell
    ./loadtest/run-limits.ps1 -Scenario tput -Rooms 500 -Users 15 -Steps 10,8,6,4,3,2,1
-   ./loadtest/summarize.ps1  -Dir loadtest/results/300m/tput
+   ./loadtest/summarize.ps1  -Dir loadtest/results/150m/tput
    ```
    The ceiling is the highest delivered `recv_per_s` at completeness >= 98 % and
    `ws_errors` within the teardown budget (`summarize.ps1 -WsErrTolerancePct`,
@@ -105,6 +105,13 @@ and brings it back up, waiting until the server container and nginx both answer
    throughput by **completeness and tail latency**, not by delivered rate alone:
    the ~1 s outbox poll is a fixed latency floor, but a p95 well above it means the
    relay is already queueing.
+
+   `recv_per_s` is received frames ÷ `deliver_s`, the time delivery actually
+   took. When a step's p95 is under `-LatencyP95Ms` (default 2500, the same as the
+   k6 threshold), `deliver_s` is the `DURATION` send window. Otherwise messages
+   queued and kept arriving after sending stopped. `deliver_s` is then `DURATION`
+   plus the slowest message's latency, capped at `DRAIN`, because sockets close at
+   the end of the drain.
 
 `summarize.ps1 -Compare <dir>` puts two sweeps side by side.
 

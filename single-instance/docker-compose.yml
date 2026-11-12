@@ -19,7 +19,7 @@ services:
       resources:
         limits:
           memory: 600m
-          cpus: "2.00"
+          cpus: "2.50"
 
   server:
     build:
@@ -44,8 +44,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 300m
-          cpus: "8.00"
+          memory: 150m
+          cpus: "0.50"
 
   nginx:
     image: nginx:1.27-alpine
@@ -64,4 +64,4 @@ services:
       resources:
         limits:
           memory: 512m
-          cpus: "1.00"
+          cpus: "2.50"

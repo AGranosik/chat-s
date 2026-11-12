@@ -12,7 +12,7 @@ x-server: &server
     redis:
       condition: service_healthy
   expose:
-    - "8080" # internal only: reachable by nginx on the compose network, never published to the host
+    - "8080"
   restart: on-failure
   ulimits:
     nofile:
@@ -50,7 +50,7 @@ services:
       resources:
         limits:
           memory: 600m
-          cpus: "2.00"
+          cpus: "2.50"
   kafka:
     image: apache/kafka:4.2.0
     container_name: kafka
@@ -70,12 +70,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
  
-      # --- Single-broker cluster: replication/ISR must be 1, not the Kafka defaults of 3 ---
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
  
-      # --- Convenience for local dev; turn off if you want explicit topic creation ---
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_NUM_PARTITIONS: 24
       KAFKA_LOG_DIRS: /var/lib/kafka/data
@@ -478,9 +476,8 @@ services:
     deploy:
       resources:
         limits:
-          # Headroom so nginx is never the wall — the 3x165m servers are the SUT.
           memory: 512m
-          cpus: "1.00"
+          cpus: "2.50"
 
 volumes:
   kafka-data:
