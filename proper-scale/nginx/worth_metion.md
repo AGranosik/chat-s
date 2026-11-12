@@ -22,4 +22,6 @@ no retry on rabbitmq or requeue because in ideal scenario whenever the mssages i
 ack/reject path
 
 
-/// scale at proper scale without room sharding at ngnx and with it and check when its become better if ever
+hash with max_conns
+
+//add 3 more

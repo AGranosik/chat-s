@@ -1,0 +1,253 @@
+{
+    "metrics": {
+        "ws_errors": {
+            "count": 0,
+            "rate": 0,
+            "thresholds": {
+                "count<=8": false
+            }
+        },
+        "data_sent": {
+            "count": 5713102,
+            "rate": 23217.615060676293
+        },
+        "ws_sessions": {
+            "count": 1500,
+            "rate": 6.0958867163608215
+        },
+        "vus": {
+            "value": 1404,
+            "min": 6,
+            "max": 1500
+        },
+        "checks": {
+            "passes": 1500,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "msgs_accepted": {
+            "count": 30018,
+            "rate": 121.99088496781276
+        },
+        "ws_msgs_sent": {
+            "count": 30018,
+            "rate": 121.99088496781276
+        },
+        "ws_msgs_received": {
+            "count": 480288,
+            "rate": 1951.8541594850042
+        },
+        "ws_session_duration": {
+            "avg": 154977.26436599455,
+            "min": 65018.726623,
+            "med": 154974.94091900002,
+            "max": 244893.892207,
+            "p(90)": 226902.46155510002,
+            "p(95)": 235890.17932184998
+        },
+        "iteration_duration": {
+            "p(90)": 210061.24367860003,
+            "p(95)": 227476.31029395,
+            "avg": 80539.96595171833,
+            "min": 1000.027585,
+            "med": 70764.9105325,
+            "max": 244894.216813
+        },
+        "vus_max": {
+            "value": 1500,
+            "min": 1500,
+            "max": 1500
+        },
+        "msgs_received": {
+            "count": 450270,
+            "rate": 1829.8632745171915,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "msg_e2e_latency": {
+            "min": 105,
+            "med": 6841,
+            "max": 24571,
+            "p(90)": 17119,
+            "p(95)": 21341,
+            "avg": 8168.458846914074,
+            "thresholds": {
+                "p(95)<2500": true,
+                "p(99)<3500": true
+            }
+        },
+        "ws_connecting": {
+            "p(90)": 2.3009777000000007,
+            "p(95)": 2.46306145,
+            "avg": 1.8875368313333338,
+            "min": 1.076838,
+            "med": 1.7392545,
+            "max": 33.010182,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "msgs_sent": {
+            "count": 30018,
+            "rate": 121.99088496781276,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "data_received": {
+            "count": 129428156,
+            "rate": 525986.2512556508
+        },
+        "iterations": {
+            "count": 2904,
+            "rate": 11.80163668287455
+        }
+    },
+    "setup_data": {
+        "duration_s": 30,
+        "ramp_s": 180,
+        "rooms": [
+            "proper-1794517797834-08xobvfs-room-0",
+            "proper-1794517797834-08xobvfs-room-1",
+            "proper-1794517797834-08xobvfs-room-2",
+            "proper-1794517797834-08xobvfs-room-3",
+            "proper-1794517797834-08xobvfs-room-4",
+            "proper-1794517797834-08xobvfs-room-5",
+            "proper-1794517797834-08xobvfs-room-6",
+            "proper-1794517797834-08xobvfs-room-7",
+            "proper-1794517797834-08xobvfs-room-8",
+            "proper-1794517797834-08xobvfs-room-9",
+            "proper-1794517797834-08xobvfs-room-10",
+            "proper-1794517797834-08xobvfs-room-11",
+            "proper-1794517797834-08xobvfs-room-12",
+            "proper-1794517797834-08xobvfs-room-13",
+            "proper-1794517797834-08xobvfs-room-14",
+            "proper-1794517797834-08xobvfs-room-15",
+            "proper-1794517797834-08xobvfs-room-16",
+            "proper-1794517797834-08xobvfs-room-17",
+            "proper-1794517797834-08xobvfs-room-18",
+            "proper-1794517797834-08xobvfs-room-19",
+            "proper-1794517797834-08xobvfs-room-20",
+            "proper-1794517797834-08xobvfs-room-21",
+            "proper-1794517797834-08xobvfs-room-22",
+            "proper-1794517797834-08xobvfs-room-23",
+            "proper-1794517797834-08xobvfs-room-24",
+            "proper-1794517797834-08xobvfs-room-25",
+            "proper-1794517797834-08xobvfs-room-26",
+            "proper-1794517797834-08xobvfs-room-27",
+            "proper-1794517797834-08xobvfs-room-28",
+            "proper-1794517797834-08xobvfs-room-29",
+            "proper-1794517797834-08xobvfs-room-30",
+            "proper-1794517797834-08xobvfs-room-31",
+            "proper-1794517797834-08xobvfs-room-32",
+            "proper-1794517797834-08xobvfs-room-33",
+            "proper-1794517797834-08xobvfs-room-34",
+            "proper-1794517797834-08xobvfs-room-35",
+            "proper-1794517797834-08xobvfs-room-36",
+            "proper-1794517797834-08xobvfs-room-37",
+            "proper-1794517797834-08xobvfs-room-38",
+            "proper-1794517797834-08xobvfs-room-39",
+            "proper-1794517797834-08xobvfs-room-40",
+            "proper-1794517797834-08xobvfs-room-41",
+            "proper-1794517797834-08xobvfs-room-42",
+            "proper-1794517797834-08xobvfs-room-43",
+            "proper-1794517797834-08xobvfs-room-44",
+            "proper-1794517797834-08xobvfs-room-45",
+            "proper-1794517797834-08xobvfs-room-46",
+            "proper-1794517797834-08xobvfs-room-47",
+            "proper-1794517797834-08xobvfs-room-48",
+            "proper-1794517797834-08xobvfs-room-49",
+            "proper-1794517797834-08xobvfs-room-50",
+            "proper-1794517797834-08xobvfs-room-51",
+            "proper-1794517797834-08xobvfs-room-52",
+            "proper-1794517797834-08xobvfs-room-53",
+            "proper-1794517797834-08xobvfs-room-54",
+            "proper-1794517797834-08xobvfs-room-55",
+            "proper-1794517797834-08xobvfs-room-56",
+            "proper-1794517797834-08xobvfs-room-57",
+            "proper-1794517797834-08xobvfs-room-58",
+            "proper-1794517797834-08xobvfs-room-59",
+            "proper-1794517797834-08xobvfs-room-60",
+            "proper-1794517797834-08xobvfs-room-61",
+            "proper-1794517797834-08xobvfs-room-62",
+            "proper-1794517797834-08xobvfs-room-63",
+            "proper-1794517797834-08xobvfs-room-64",
+            "proper-1794517797834-08xobvfs-room-65",
+            "proper-1794517797834-08xobvfs-room-66",
+            "proper-1794517797834-08xobvfs-room-67",
+            "proper-1794517797834-08xobvfs-room-68",
+            "proper-1794517797834-08xobvfs-room-69",
+            "proper-1794517797834-08xobvfs-room-70",
+            "proper-1794517797834-08xobvfs-room-71",
+            "proper-1794517797834-08xobvfs-room-72",
+            "proper-1794517797834-08xobvfs-room-73",
+            "proper-1794517797834-08xobvfs-room-74",
+            "proper-1794517797834-08xobvfs-room-75",
+            "proper-1794517797834-08xobvfs-room-76",
+            "proper-1794517797834-08xobvfs-room-77",
+            "proper-1794517797834-08xobvfs-room-78",
+            "proper-1794517797834-08xobvfs-room-79",
+            "proper-1794517797834-08xobvfs-room-80",
+            "proper-1794517797834-08xobvfs-room-81",
+            "proper-1794517797834-08xobvfs-room-82",
+            "proper-1794517797834-08xobvfs-room-83",
+            "proper-1794517797834-08xobvfs-room-84",
+            "proper-1794517797834-08xobvfs-room-85",
+            "proper-1794517797834-08xobvfs-room-86",
+            "proper-1794517797834-08xobvfs-room-87",
+            "proper-1794517797834-08xobvfs-room-88",
+            "proper-1794517797834-08xobvfs-room-89",
+            "proper-1794517797834-08xobvfs-room-90",
+            "proper-1794517797834-08xobvfs-room-91",
+            "proper-1794517797834-08xobvfs-room-92",
+            "proper-1794517797834-08xobvfs-room-93",
+            "proper-1794517797834-08xobvfs-room-94",
+            "proper-1794517797834-08xobvfs-room-95",
+            "proper-1794517797834-08xobvfs-room-96",
+            "proper-1794517797834-08xobvfs-room-97",
+            "proper-1794517797834-08xobvfs-room-98",
+            "proper-1794517797834-08xobvfs-room-99"
+        ],
+        "drain_s": 30,
+        "mode": "tput",
+        "runId": "1794517797834-08xobvfs",
+        "send_interval_s": 1.5,
+        "settle_s": 5,
+        "users": [
+            "proper-1794517797834-08xobvfs-user-0",
+            "proper-1794517797834-08xobvfs-user-1",
+            "proper-1794517797834-08xobvfs-user-2",
+            "proper-1794517797834-08xobvfs-user-3",
+            "proper-1794517797834-08xobvfs-user-4",
+            "proper-1794517797834-08xobvfs-user-5",
+            "proper-1794517797834-08xobvfs-user-6",
+            "proper-1794517797834-08xobvfs-user-7",
+            "proper-1794517797834-08xobvfs-user-8",
+            "proper-1794517797834-08xobvfs-user-9",
+            "proper-1794517797834-08xobvfs-user-10",
+            "proper-1794517797834-08xobvfs-user-11",
+            "proper-1794517797834-08xobvfs-user-12",
+            "proper-1794517797834-08xobvfs-user-13",
+            "proper-1794517797834-08xobvfs-user-14"
+        ]
+    },
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "ws handshake 101": {
+                    "path": "::ws handshake 101",
+                    "id": "ea93306d778e5fa4d95326bd5ce13a44",
+                    "passes": 1500,
+                    "fails": 0,
+                    "name": "ws handshake 101"
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}
