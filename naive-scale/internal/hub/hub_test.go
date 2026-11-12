@@ -14,18 +14,12 @@ import (
 	"naive-scale/internal/models"
 )
 
-// testRedisAddr is the host:port of a Redis container shared by the whole
-// package, started once in TestMain. These tests require Docker: if the
-// container can't start, the suite fails rather than skips.
 var testRedisAddr string
 
 func TestMain(m *testing.M) {
 	os.Exit(run(m))
 }
 
-// run owns the Redis container lifecycle so deferred cleanup runs before
-// os.Exit. These tests require Docker: a container that won't start (no daemon,
-// image pull fails) fails the suite rather than skipping it.
 func run(m *testing.M) int {
 	ctx := context.Background()
 
@@ -53,15 +47,10 @@ func run(m *testing.M) int {
 	return m.Run()
 }
 
-// newTestClient builds a client without a websocket connection. The hub's Run
-// loop never touches conn — only the read/write pumps do — so a nil conn is
-// safe for fan-out tests.
 func newTestClient(roomID string) *Client {
 	return &Client{roomID: roomID, send: make(chan []byte, sendBuffer)}
 }
 
-// startHub runs a hub wired to the package Redis container and returns it with a
-// cleanup that stops the Run goroutine.
 func startHub(t *testing.T) *Hub {
 	t.Helper()
 	h := New(testRedisAddr)
@@ -71,18 +60,10 @@ func startHub(t *testing.T) *Hub {
 	return h
 }
 
-// roomFor returns a room id unique to this test. Tests share one Redis, and a
-// hub's subscriptions only drop once its Run goroutine finishes tearing down
-// (after t.Cleanup cancels it), so a fixed room name could let one test observe
-// another's lingering subscription. Unique names remove the cross-test coupling.
 func roomFor(t *testing.T, suffix string) string {
 	return t.Name() + "/" + suffix
 }
 
-// waitSubscribed blocks until Redis reports an active subscriber for the room's
-// channel. Register only queues the work; Run performs the SUBSCRIBE
-// asynchronously on the pub/sub connection, so without this a Broadcast can
-// publish before the subscription lands and the message is silently lost.
 func waitSubscribed(t *testing.T, h *Hub, roomID string) {
 	t.Helper()
 	ch := roomChannel(roomID)
@@ -100,7 +81,6 @@ func waitSubscribed(t *testing.T, h *Hub, roomID string) {
 	t.Fatalf("subscription for %s not active within timeout", ch)
 }
 
-// recvWithin reads one payload from the channel or fails after timeout.
 func recvWithin(t *testing.T, ch <-chan []byte, d time.Duration) []byte {
 	t.Helper()
 	select {
@@ -144,10 +124,8 @@ func TestBroadcast_IsolatedByRoom(t *testing.T) {
 
 	h.Broadcast(roomA, models.Message{ID: 1, RoomID: roomA, Body: "hi"})
 
-	// roomA member gets it.
 	recvWithin(t, in.send, 2*time.Second)
 
-	// roomB member must not.
 	select {
 	case b := <-out.send:
 		t.Fatalf("cross-room delivery: roomB client received %s", b)
@@ -176,8 +154,6 @@ func TestUnregister_ClosesSendAndStopsDelivery(t *testing.T) {
 	h.Register(c)
 	h.Unregister(c)
 
-	// Unregister closes the send channel; a receive returns the zero value with
-	// ok=false once the close is observed.
 	if _, ok := <-c.send; ok {
 		t.Error("expected send channel to be closed after unregister")
 	}
@@ -185,7 +161,6 @@ func TestUnregister_ClosesSendAndStopsDelivery(t *testing.T) {
 
 func TestBroadcast_UnknownRoomIsNoOp(t *testing.T) {
 	h := startHub(t)
-	// Publishing to a room with no subscribers must not panic or block.
 	room := roomFor(t, "ghost")
 	h.Broadcast(room, models.Message{ID: 1, RoomID: room, Body: "x"})
 }

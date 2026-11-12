@@ -11,8 +11,6 @@ import (
 	"naive-scale/migrations"
 )
 
-// Migrate applies all goose migrations on boot, using a short-lived
-// database/sql connection (goose speaks database/sql; the app speaks pgx).
 func Migrate(ctx context.Context, dsn string) error {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -31,7 +29,6 @@ func Migrate(ctx context.Context, dsn string) error {
 	return nil
 }
 
-// Connect opens a pgx connection pool and verifies it with a ping.
 func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {

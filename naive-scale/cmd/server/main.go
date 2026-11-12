@@ -38,9 +38,6 @@ func main() {
 	defer pool.Close()
 	store := storage.New(pool)
 
-	// Cross-instance fan-out via Redis pub/sub: each replica publishes every
-	// broadcast to a room:<id> channel and subscribes to the rooms it hosts, so a
-	// message now reaches clients on any instance, not just this one.
 	h := hub.New(redisAddr)
 	go h.Run(ctx)
 

@@ -20,8 +20,6 @@ create table messages (
 );
 create index messages_room_created_idx on messages (room_id, created_at desc, id desc);
 
--- Transactional outbox: a message insert and its outbox event commit together,
--- and the relay drains undispatched rows in id order. See docs/ARCHITECTURE.md.
 create table outbox (
     id            bigserial primary key,
     room_id       uuid not null,

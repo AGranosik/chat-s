@@ -28,7 +28,7 @@ import (
 
 const (
 	httpAddr           = ":8080"
-	redisChannelPrefix = "instance:" // channelName() just concatenates, so keep the separator
+	redisChannelPrefix = "instance:"
 	redisBufferSize    = 100
 	shutdownTimeout    = 5 * time.Second
 )

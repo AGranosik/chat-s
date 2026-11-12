@@ -7,7 +7,6 @@ import (
 	"naive-scale/internal/models"
 )
 
-// CreateUser inserts a user and returns it with its generated id.
 func (s *Store) CreateUser(ctx context.Context, username string) (models.User, error) {
 	var u models.User
 	err := s.pool.QueryRow(ctx,
@@ -21,7 +20,6 @@ func (s *Store) CreateUser(ctx context.Context, username string) (models.User, e
 	return u, nil
 }
 
-// ListUsers returns all users, newest first.
 func (s *Store) ListUsers(ctx context.Context) ([]models.User, error) {
 	rows, err := s.pool.Query(ctx,
 		`select id, username, created_at from users order by created_at desc`)

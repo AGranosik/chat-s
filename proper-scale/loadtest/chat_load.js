@@ -1,6 +1,3 @@
-// One VU owns one long-lived websocket. Throughput runs ramp connections up,
-// wait for the ramp and settle phases, send for DURATION, then leave sockets
-// open for DRAIN so delayed room deliveries are included in the result.
 import ws from 'k6/ws';
 import exec from 'k6/execution';
 import { check, sleep } from 'k6';

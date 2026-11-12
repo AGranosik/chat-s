@@ -19,7 +19,6 @@ import (
 )
 
 func main() {
-	// No defers here, so log.Fatalf is safe: run() has already cleaned up.
 	if err := run(); err != nil {
 		log.Fatalf("fatal: %v", err)
 	}

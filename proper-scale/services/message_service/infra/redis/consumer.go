@@ -95,7 +95,6 @@ func (c *Consumer) Run(ctx context.Context) error {
 	}
 }
 
-// TODO: to common
 func channelName(prefix, instanceName string) string {
 	return prefix + instanceName
 }

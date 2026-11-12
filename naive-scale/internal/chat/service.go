@@ -15,25 +15,17 @@ import (
 
 const maxBodyLen = 4000
 
-// ErrInvalid is returned when an incoming frame fails validation.
 var ErrInvalid = errors.New("invalid message")
 
-// Broadcaster fans a message out to everyone in a room. The in-memory hub
-// implements it today; a Redis/Kafka impl implements the same interface when we
-// scale out across instances (that swap is the whole point of naive-scale — see
-// README.md). The outbox relay is the only caller.
 type Broadcaster interface {
 	Broadcast(roomID string, msg models.Message)
 }
 
-// Incoming is a message frame received over the websocket.
 type Incoming struct {
 	UserID string `json:"user_id"`
 	Body   string `json:"body"`
 }
 
-// Service runs validate → (persist + enqueue) for inbound messages. It does not
-// broadcast — the outbox relay does, after the transaction commits.
 type Service struct {
 	store *storage.Store
 }
@@ -42,9 +34,6 @@ func NewService(store *storage.Store) *Service {
 	return &Service{store: store}
 }
 
-// HandleIncoming validates the frame, then inserts the message and its outbox
-// event in one transaction. The outbox relay picks the row up on its next poll
-// and broadcasts it — no commit-time signalling.
 func (s *Service) HandleIncoming(ctx context.Context, roomID string, in Incoming) error {
 	body := strings.TrimSpace(in.Body)
 	switch {

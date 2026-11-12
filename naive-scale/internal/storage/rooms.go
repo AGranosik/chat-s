@@ -7,7 +7,6 @@ import (
 	"naive-scale/internal/models"
 )
 
-// CreateRoom inserts a room and returns it with its generated id.
 func (s *Store) CreateRoom(ctx context.Context, name string) (models.Room, error) {
 	var r models.Room
 	err := s.pool.QueryRow(ctx,
@@ -21,7 +20,6 @@ func (s *Store) CreateRoom(ctx context.Context, name string) (models.Room, error
 	return r, nil
 }
 
-// ListRooms returns all rooms, newest first.
 func (s *Store) ListRooms(ctx context.Context) ([]models.Room, error) {
 	rows, err := s.pool.Query(ctx,
 		`select id, name, created_at from rooms order by created_at desc`)

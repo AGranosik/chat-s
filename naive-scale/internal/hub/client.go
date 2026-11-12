@@ -16,7 +16,6 @@ const (
 	sendBuffer     = 256
 )
 
-// Client is one websocket connection bound to a single room.
 type Client struct {
 	hub    *Hub
 	conn   *websocket.Conn
@@ -33,8 +32,6 @@ func NewClient(h *Hub, conn *websocket.Conn, roomID string) *Client {
 	}
 }
 
-// ReadPump reads frames and hands each payload to onMessage. It runs until the
-// peer disconnects, then unregisters the client. Run on its own goroutine.
 func (c *Client) ReadPump(onMessage func(data []byte)) {
 	defer func() {
 		c.hub.Unregister(c)
@@ -59,8 +56,6 @@ func (c *Client) ReadPump(onMessage func(data []byte)) {
 	}
 }
 
-// WritePump flushes queued messages and sends periodic pings to keep the
-// connection alive. Run on its own goroutine.
 func (c *Client) WritePump(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -75,7 +70,6 @@ func (c *Client) WritePump(ctx context.Context) {
 		case msg, ok := <-c.send:
 			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// Hub closed the channel on unregister.
 				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}

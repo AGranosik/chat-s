@@ -16,8 +16,6 @@ import (
 
 const oneOnOneTimeout = 20 * time.Second
 
-// TestE2EOneOnOne exercises the live WebSocket -> outbox/Kafka -> Redis ->
-// WebSocket path against an already-running stack.
 func TestE2EOneOnOne(t *testing.T) {
 
 	endpoint := envOr("WS_E2E_URL", "ws://localhost:80/ws")

@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// HandleIncoming validates before touching the store, so these cases never
-// reach the database — a nil store is safe for them.
 func TestHandleIncoming_ValidationRejects(t *testing.T) {
 	svc := NewService(nil)
 
@@ -33,10 +31,6 @@ func TestHandleIncoming_ValidationRejects(t *testing.T) {
 }
 
 func TestHandleIncoming_BodyAtMaxLenPassesValidation(t *testing.T) {
-	// A body exactly at the limit must clear validation. We can't assert the
-	// happy path end-to-end without a store, but we can assert it is NOT
-	// rejected as invalid (the panic from the nil store proves it got past
-	// validation into WithTx).
 	svc := NewService(nil)
 
 	defer func() {

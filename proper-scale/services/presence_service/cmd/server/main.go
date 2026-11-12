@@ -18,8 +18,8 @@ func main() {
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "redis:6379", // host:port
-		DB:   0,            // use default DB
+		Addr: "redis:6379",
+		DB:   0,
 	})
 
 	g := &app.ConnectionService{
@@ -28,7 +28,6 @@ func main() {
 	grpcServer := grpc.NewServer()
 	contractsv1.RegisterUserServiceServer(grpcServer, g)
 
-	// optional but handy for debugging with tools like grpcurl or Postman
 	reflection.Register(grpcServer)
 
 	log.Println("gRPC server listening on :9090")

@@ -25,9 +25,6 @@ import (
 	"naive-scale/internal/transport"
 )
 
-// stack is the fully wired server (hub + service + relay + router) on an
-// httptest.Server, mirroring cmd/server/main.go. recBC, when non-nil, taps the
-// broadcaster so a test can observe relay hand-offs without a live ws client.
 type stack struct {
 	srv   *httptest.Server
 	hub   *hub.Hub
@@ -35,10 +32,6 @@ type stack struct {
 	svc   *chat.Service
 }
 
-// newStack resets the DB and wires the real components against the shared store,
-// starting the hub + relay on a context cancelled in t.Cleanup. broadcaster
-// picks which Broadcaster the relay feeds: pass nil to use the real hub (the
-// production path); pass a recorder to observe events directly.
 func newStack(t *testing.T, broadcaster chat.Broadcaster) *stack {
 	t.Helper()
 	freshDB(t)
@@ -65,13 +58,11 @@ func newStack(t *testing.T, broadcaster chat.Broadcaster) *stack {
 	return &stack{srv: srv, hub: h, store: testStore, svc: svc}
 }
 
-// wsURL converts the httptest base URL to a ws:// dial URL for a room.
 func (s *stack) wsURL(room string) string {
 	u := strings.Replace(s.srv.URL, "http://", "ws://", 1)
 	return u + "/ws?room=" + url.QueryEscape(room)
 }
 
-// dialWS opens a websocket client to the room and closes it in t.Cleanup.
 func (s *stack) dialWS(t *testing.T, room string) *websocket.Conn {
 	t.Helper()
 	conn, resp, err := websocket.DefaultDialer.Dial(s.wsURL(room), nil)
@@ -86,7 +77,6 @@ func (s *stack) dialWS(t *testing.T, room string) *websocket.Conn {
 	return conn
 }
 
-// send writes a chat frame over the socket.
 func send(t *testing.T, conn *websocket.Conn, userID, body string) {
 	t.Helper()
 	frame, _ := json.Marshal(chat.Incoming{UserID: userID, Body: body})
@@ -95,7 +85,6 @@ func send(t *testing.T, conn *websocket.Conn, userID, body string) {
 	}
 }
 
-// readMessage reads one broadcast message frame, failing on timeout.
 func readMessage(t *testing.T, conn *websocket.Conn, timeout time.Duration) models.Message {
 	t.Helper()
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
@@ -110,7 +99,6 @@ func readMessage(t *testing.T, conn *websocket.Conn, timeout time.Duration) mode
 	return m
 }
 
-// getJSON does a GET and decodes the JSON body into out.
 func (s *stack) getJSON(t *testing.T, path string, out any) {
 	t.Helper()
 	resp, err := http.Get(s.srv.URL + path)
@@ -127,7 +115,6 @@ func (s *stack) getJSON(t *testing.T, path string, out any) {
 	}
 }
 
-// postJSON does a POST with a JSON body and returns the status + decoded body.
 func (s *stack) postJSON(t *testing.T, path string, in, out any) int {
 	t.Helper()
 	body, _ := json.Marshal(in)
@@ -144,8 +131,6 @@ func (s *stack) postJSON(t *testing.T, path string, in, out any) int {
 	return resp.StatusCode
 }
 
-// recordingBroadcaster captures relay hand-offs for tests that don't use a ws
-// client. Guarded by a mutex because the relay runs on its own goroutine.
 type recordingBroadcaster struct {
 	mu  sync.Mutex
 	got []models.Message

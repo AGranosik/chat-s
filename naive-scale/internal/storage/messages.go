@@ -10,7 +10,6 @@ import (
 	"naive-scale/internal/models"
 )
 
-// Store wraps the connection pool and owns all queries.
 type Store struct {
 	pool *pgxpool.Pool
 }
@@ -19,12 +18,8 @@ func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// Pool exposes the underlying pool for callers that need raw access (e.g. tests
-// resetting state between runs).
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
-// WithTx runs fn inside a transaction, committing on success and rolling back
-// on error. This is how a message insert and its outbox event commit atomically.
 func (s *Store) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -40,7 +35,6 @@ func (s *Store) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	return nil
 }
 
-// InsertMessage inserts m within tx and fills its ID and CreatedAt.
 func InsertMessage(ctx context.Context, tx pgx.Tx, m *models.Message) error {
 	err := tx.QueryRow(ctx,
 		`insert into messages (room_id, user_id, body)
@@ -54,8 +48,6 @@ func InsertMessage(ctx context.Context, tx pgx.Tx, m *models.Message) error {
 	return nil
 }
 
-// History returns up to limit messages for a room, newest first, older than the
-// before cursor (a message id; 0 means "from the newest").
 func (s *Store) History(ctx context.Context, roomID string, before int64, limit int) ([]models.Message, error) {
 	rows, err := s.pool.Query(ctx,
 		`select id, room_id, user_id, body, created_at

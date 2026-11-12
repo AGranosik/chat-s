@@ -1,17 +1,4 @@
-﻿# Runs the full chat-s load-test matrix: ROOMS x USERS. Connections ramp up over
-# -Ramp seconds, hold at full load for -Duration seconds, and each user sends one
-# message every -SendInterval seconds.
-#
-# Per-run JSON summaries land in loadtest/results/. A non-zero k6 exit code means
-# that run breached a threshold; the script reports it and keeps going.
-#
-#   ./run-matrix.ps1                                   # full 4x3 matrix
-#   ./run-matrix.ps1 -Rooms 1,10 -Users 2,5 -Duration 60
-#
-# The largest cell (1000 rooms x 10 users) opens 10,000 sockets from this host;
-# raise the OS file-descriptor limit and run against a warm Postgres.
-
-param(
+﻿param(
   [int[]]  $Rooms        = @(10, 100, 100),
   [int[]]  $Users        = @(5, 10, 100),
   [int]    $Ramp         = 150,

@@ -8,7 +8,7 @@ param(
   [int]      $Users        = 50,
   [int]      $ConnUsers    = 2,
   [ValidatePattern('^[a-zA-Z0-9._-]+$')]
-  [string]   $Tag          = "10x33m-proper",
+  [string]   $Tag          = "3x33m-proper",
   [int]      $Ramp         = 180,
   [int]      $Settle       = 5,
   [int]      $Duration     = 30,
@@ -43,7 +43,7 @@ if ($NativeK6) {
   }
 }
 
-$serverContainers = @(1..20 | ForEach-Object { "chat-server-$_" })
+$serverContainers = @(1..5 | ForEach-Object { "chat-server-$_" })
 $readyPath = '/health/ready'
 
 function Wait-Ready([int] $TimeoutSec) {
@@ -78,7 +78,7 @@ function Reset-Stack {
 
   if (-not (Wait-Ready $ReadyTimeout)) {
     Push-Location $repoRoot
-    try { docker compose logs --tail 80 server1 server2 server3 server4 server5 server6 server7 server8 server9 server10 server11 server12 server13 server14 server15 server16 server17 server18 server19 server20 presence_service delivery_service delivery_service_1 outbox_relay outbox_relay_1 outbox_relay_2 } finally { Pop-Location }
+    try { docker compose logs --tail 80 server1 server2 server3 server4 server5 presence_service delivery_service delivery_service_1 outbox_relay outbox_relay_1 outbox_relay_2 } finally { Pop-Location }
     throw "proper-scale did not become ready at $HttpBase/health/ready within ${ReadyTimeout}s"
   }
 }

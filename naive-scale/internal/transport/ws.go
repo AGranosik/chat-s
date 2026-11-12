@@ -14,11 +14,9 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Origin check is open for now — tighten before any non-test deployment.
-	CheckOrigin: func(_ *http.Request) bool { return true },
+	CheckOrigin:     func(_ *http.Request) bool { return true },
 }
 
-// handleWS upgrades GET /ws?room=<id> and registers the client with the hub.
 func (rt *Router) handleWS(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	if roomID == "" {

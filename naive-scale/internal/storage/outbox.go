@@ -10,16 +10,12 @@ import (
 	"naive-scale/internal/models"
 )
 
-// OutboxEvent is one undispatched row decoded for the relay.
 type OutboxEvent struct {
 	ID      int64
 	RoomID  string
 	Message models.Message
 }
 
-// EnqueueOutbox writes an outbox event within tx. payload is the JSON-encoded
-// message to broadcast. Called in the same transaction as InsertMessage so the
-// two commit atomically.
 func EnqueueOutbox(ctx context.Context, tx pgx.Tx, roomID string, payload []byte) error {
 	if _, err := tx.Exec(ctx,
 		`insert into outbox (room_id, payload) values ($1, $2)`,
@@ -30,8 +26,6 @@ func EnqueueOutbox(ctx context.Context, tx pgx.Tx, roomID string, payload []byte
 	return nil
 }
 
-// FetchUndispatched returns up to limit undispatched events, oldest first, so
-// the relay preserves per-room message order.
 func (s *Store) FetchUndispatched(ctx context.Context, limit int) ([]OutboxEvent, error) {
 	rows, err := s.pool.Query(ctx,
 		`select id, room_id, payload
@@ -63,7 +57,6 @@ func (s *Store) FetchUndispatched(ctx context.Context, limit int) ([]OutboxEvent
 	return out, rows.Err()
 }
 
-// MarkDispatched stamps the given outbox rows as dispatched.
 func (s *Store) MarkDispatched(ctx context.Context, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
@@ -77,23 +70,6 @@ func (s *Store) MarkDispatched(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-// DispatchBatch claims up to limit undispatched events, hands each to dispatch,
-// stamps them dispatched, and commits — all in ONE transaction. It returns the
-// number of events processed (0 when the outbox is empty or every remaining row
-// is claimed by another relay).
-//
-// The claiming SELECT uses FOR UPDATE SKIP LOCKED, so when several relays (one
-// per instance) drain the same outbox concurrently, each locks a *distinct* batch
-// and the others skip the locked rows — no event is ever dispatched twice. This
-// is the fix for the duplicate-broadcast wrinkle the load test surfaced
-// (completeness > 100%). The plain FetchUndispatched + MarkDispatched pair can't
-// give this guarantee: as two separate autocommitted statements, two relays read
-// the same rows before either marks them.
-//
-// dispatch runs before the commit, holding the row locks across the hand-off, so
-// the guarantee stays at-least-once: if the process crashes (or dispatch/mark
-// errors) before commit, the tx rolls back and the rows are picked up again on a
-// later poll (clients de-dupe on message id).
 func (s *Store) DispatchBatch(ctx context.Context, limit int, dispatch func(OutboxEvent) error) (int, error) {
 	var processed int
 	err := s.WithTx(ctx, func(tx pgx.Tx) error {
@@ -110,9 +86,6 @@ func (s *Store) DispatchBatch(ctx context.Context, limit int, dispatch func(Outb
 			return fmt.Errorf("claim outbox: %w", err)
 		}
 
-		// Materialise the batch, then CLOSE rows before running any further query
-		// on this tx — pgx allows only one in-flight result set per connection, so
-		// the UPDATE below would fail if rows were still open.
 		var events []OutboxEvent
 		for rows.Next() {
 			var (
@@ -139,8 +112,6 @@ func (s *Store) DispatchBatch(ctx context.Context, limit int, dispatch func(Outb
 
 		ids := make([]int64, 0, len(events))
 		for _, e := range events {
-			// Blocking hand-off inside the tx: the claim (row lock) is held until
-			// the rows are stamped and committed — never drop, never double-send.
 			if err := dispatch(e); err != nil {
 				return err
 			}

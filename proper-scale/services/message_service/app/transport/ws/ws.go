@@ -113,12 +113,12 @@ func (h *Ws) ServeWS(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			continue // ignore ping/pong/close control frames here, gorilla handles them
+			continue
 		}
 
 		if err := h.handleMessage(data, ctx, clientID, client); err != nil {
 			slog.Warn("bad message, dropping", "err", err)
-			continue // don't kill the connection over one bad message
+			continue
 		}
 	}
 }
