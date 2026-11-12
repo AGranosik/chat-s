@@ -1,0 +1,253 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "ws handshake 101": {
+                    "name": "ws handshake 101",
+                    "path": "::ws handshake 101",
+                    "id": "ea93306d778e5fa4d95326bd5ce13a44",
+                    "passes": 1500,
+                    "fails": 0
+                }
+            }
+    },
+    "metrics": {
+        "msgs_sent": {
+            "count": 90032,
+            "rate": 365.863629456641,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "ws_connecting": {
+            "avg": 1.7360628013333326,
+            "min": 1.093822,
+            "med": 1.6265175,
+            "max": 25.682385,
+            "p(90)": 2.0622046000000003,
+            "p(95)": 2.291701449999999,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "ws_errors": {
+            "count": 0,
+            "rate": 0,
+            "thresholds": {
+                "count<=8": false
+            }
+        },
+        "vus_max": {
+            "min": 1500,
+            "max": 1500,
+            "value": 1500
+        },
+        "data_received": {
+            "count": 177835603,
+            "rate": 722671.7073950407
+        },
+        "checks": {
+            "passes": 1500,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "msg_e2e_latency": {
+            "med": 24004,
+            "max": 47386,
+            "p(90)": 41505,
+            "p(95)": 43857,
+            "avg": 23710.887374007023,
+            "min": 461,
+            "thresholds": {
+                "p(95)<2500": true,
+                "p(99)<3500": true
+            }
+        },
+        "ws_sessions": {
+            "count": 1500,
+            "rate": 6.095559847442703
+        },
+        "vus": {
+            "value": 1404,
+            "min": 6,
+            "max": 1500
+        },
+        "ws_msgs_received": {
+            "count": 659783,
+            "rate": 2681.1645085501927
+        },
+        "ws_msgs_sent": {
+            "count": 90032,
+            "rate": 365.863629456641
+        },
+        "msgs_received": {
+            "rate": 2511.73639073724,
+            "count": 618090,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "msgs_accepted": {
+            "count": 41693,
+            "rate": 169.42811781295242
+        },
+        "iteration_duration": {
+            "med": 70772.38875099999,
+            "max": 244885.443659,
+            "p(90)": 210117.64031740004,
+            "p(95)": 227516.13507895,
+            "avg": 80540.61739427889,
+            "min": 1000.028226
+        },
+        "ws_session_duration": {
+            "med": 154989.1288445,
+            "max": 244885.275458,
+            "p(90)": 226896.3809743,
+            "p(95)": 235906.15539595,
+            "avg": 154973.04353703003,
+            "min": 65070.228975
+        },
+        "data_sent": {
+            "count": 16285168,
+            "rate": 66178.14411310585
+        },
+        "iterations": {
+            "count": 2904,
+            "rate": 11.801003864649072
+        }
+    },
+    "setup_data": {
+        "duration_s": 30,
+        "rooms": [
+            "proper-1794515593769-4h5to7mo-room-0",
+            "proper-1794515593769-4h5to7mo-room-1",
+            "proper-1794515593769-4h5to7mo-room-2",
+            "proper-1794515593769-4h5to7mo-room-3",
+            "proper-1794515593769-4h5to7mo-room-4",
+            "proper-1794515593769-4h5to7mo-room-5",
+            "proper-1794515593769-4h5to7mo-room-6",
+            "proper-1794515593769-4h5to7mo-room-7",
+            "proper-1794515593769-4h5to7mo-room-8",
+            "proper-1794515593769-4h5to7mo-room-9",
+            "proper-1794515593769-4h5to7mo-room-10",
+            "proper-1794515593769-4h5to7mo-room-11",
+            "proper-1794515593769-4h5to7mo-room-12",
+            "proper-1794515593769-4h5to7mo-room-13",
+            "proper-1794515593769-4h5to7mo-room-14",
+            "proper-1794515593769-4h5to7mo-room-15",
+            "proper-1794515593769-4h5to7mo-room-16",
+            "proper-1794515593769-4h5to7mo-room-17",
+            "proper-1794515593769-4h5to7mo-room-18",
+            "proper-1794515593769-4h5to7mo-room-19",
+            "proper-1794515593769-4h5to7mo-room-20",
+            "proper-1794515593769-4h5to7mo-room-21",
+            "proper-1794515593769-4h5to7mo-room-22",
+            "proper-1794515593769-4h5to7mo-room-23",
+            "proper-1794515593769-4h5to7mo-room-24",
+            "proper-1794515593769-4h5to7mo-room-25",
+            "proper-1794515593769-4h5to7mo-room-26",
+            "proper-1794515593769-4h5to7mo-room-27",
+            "proper-1794515593769-4h5to7mo-room-28",
+            "proper-1794515593769-4h5to7mo-room-29",
+            "proper-1794515593769-4h5to7mo-room-30",
+            "proper-1794515593769-4h5to7mo-room-31",
+            "proper-1794515593769-4h5to7mo-room-32",
+            "proper-1794515593769-4h5to7mo-room-33",
+            "proper-1794515593769-4h5to7mo-room-34",
+            "proper-1794515593769-4h5to7mo-room-35",
+            "proper-1794515593769-4h5to7mo-room-36",
+            "proper-1794515593769-4h5to7mo-room-37",
+            "proper-1794515593769-4h5to7mo-room-38",
+            "proper-1794515593769-4h5to7mo-room-39",
+            "proper-1794515593769-4h5to7mo-room-40",
+            "proper-1794515593769-4h5to7mo-room-41",
+            "proper-1794515593769-4h5to7mo-room-42",
+            "proper-1794515593769-4h5to7mo-room-43",
+            "proper-1794515593769-4h5to7mo-room-44",
+            "proper-1794515593769-4h5to7mo-room-45",
+            "proper-1794515593769-4h5to7mo-room-46",
+            "proper-1794515593769-4h5to7mo-room-47",
+            "proper-1794515593769-4h5to7mo-room-48",
+            "proper-1794515593769-4h5to7mo-room-49",
+            "proper-1794515593769-4h5to7mo-room-50",
+            "proper-1794515593769-4h5to7mo-room-51",
+            "proper-1794515593769-4h5to7mo-room-52",
+            "proper-1794515593769-4h5to7mo-room-53",
+            "proper-1794515593769-4h5to7mo-room-54",
+            "proper-1794515593769-4h5to7mo-room-55",
+            "proper-1794515593769-4h5to7mo-room-56",
+            "proper-1794515593769-4h5to7mo-room-57",
+            "proper-1794515593769-4h5to7mo-room-58",
+            "proper-1794515593769-4h5to7mo-room-59",
+            "proper-1794515593769-4h5to7mo-room-60",
+            "proper-1794515593769-4h5to7mo-room-61",
+            "proper-1794515593769-4h5to7mo-room-62",
+            "proper-1794515593769-4h5to7mo-room-63",
+            "proper-1794515593769-4h5to7mo-room-64",
+            "proper-1794515593769-4h5to7mo-room-65",
+            "proper-1794515593769-4h5to7mo-room-66",
+            "proper-1794515593769-4h5to7mo-room-67",
+            "proper-1794515593769-4h5to7mo-room-68",
+            "proper-1794515593769-4h5to7mo-room-69",
+            "proper-1794515593769-4h5to7mo-room-70",
+            "proper-1794515593769-4h5to7mo-room-71",
+            "proper-1794515593769-4h5to7mo-room-72",
+            "proper-1794515593769-4h5to7mo-room-73",
+            "proper-1794515593769-4h5to7mo-room-74",
+            "proper-1794515593769-4h5to7mo-room-75",
+            "proper-1794515593769-4h5to7mo-room-76",
+            "proper-1794515593769-4h5to7mo-room-77",
+            "proper-1794515593769-4h5to7mo-room-78",
+            "proper-1794515593769-4h5to7mo-room-79",
+            "proper-1794515593769-4h5to7mo-room-80",
+            "proper-1794515593769-4h5to7mo-room-81",
+            "proper-1794515593769-4h5to7mo-room-82",
+            "proper-1794515593769-4h5to7mo-room-83",
+            "proper-1794515593769-4h5to7mo-room-84",
+            "proper-1794515593769-4h5to7mo-room-85",
+            "proper-1794515593769-4h5to7mo-room-86",
+            "proper-1794515593769-4h5to7mo-room-87",
+            "proper-1794515593769-4h5to7mo-room-88",
+            "proper-1794515593769-4h5to7mo-room-89",
+            "proper-1794515593769-4h5to7mo-room-90",
+            "proper-1794515593769-4h5to7mo-room-91",
+            "proper-1794515593769-4h5to7mo-room-92",
+            "proper-1794515593769-4h5to7mo-room-93",
+            "proper-1794515593769-4h5to7mo-room-94",
+            "proper-1794515593769-4h5to7mo-room-95",
+            "proper-1794515593769-4h5to7mo-room-96",
+            "proper-1794515593769-4h5to7mo-room-97",
+            "proper-1794515593769-4h5to7mo-room-98",
+            "proper-1794515593769-4h5to7mo-room-99"
+        ],
+        "users": [
+            "proper-1794515593769-4h5to7mo-user-0",
+            "proper-1794515593769-4h5to7mo-user-1",
+            "proper-1794515593769-4h5to7mo-user-2",
+            "proper-1794515593769-4h5to7mo-user-3",
+            "proper-1794515593769-4h5to7mo-user-4",
+            "proper-1794515593769-4h5to7mo-user-5",
+            "proper-1794515593769-4h5to7mo-user-6",
+            "proper-1794515593769-4h5to7mo-user-7",
+            "proper-1794515593769-4h5to7mo-user-8",
+            "proper-1794515593769-4h5to7mo-user-9",
+            "proper-1794515593769-4h5to7mo-user-10",
+            "proper-1794515593769-4h5to7mo-user-11",
+            "proper-1794515593769-4h5to7mo-user-12",
+            "proper-1794515593769-4h5to7mo-user-13",
+            "proper-1794515593769-4h5to7mo-user-14"
+        ],
+        "mode": "tput",
+        "ramp_s": 180,
+        "runId": "1794515593769-4h5to7mo",
+        "send_interval_s": 0.5,
+        "settle_s": 5,
+        "drain_s": 30
+    }
+}

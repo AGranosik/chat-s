@@ -1,0 +1,253 @@
+{
+    "metrics": {
+        "iterations": {
+            "count": 2808,
+            "rate": 11.408682519383818
+        },
+        "ws_msgs_received": {
+            "rate": 975.4261037228159,
+            "count": 240080
+        },
+        "msg_e2e_latency": {
+            "med": 1637,
+            "max": 4187,
+            "p(90)": 2527,
+            "p(95)": 2859,
+            "avg": 1708.2605798067311,
+            "min": 274,
+            "thresholds": {
+                "p(95)<2500": true,
+                "p(99)<3500": false
+            }
+        },
+        "data_sent": {
+            "count": 3068438,
+            "rate": 12466.821571372167
+        },
+        "vus": {
+            "max": 1500,
+            "value": 1308,
+            "min": 5
+        },
+        "ws_msgs_sent": {
+            "count": 15005,
+            "rate": 60.964131482675995
+        },
+        "ws_connecting": {
+            "med": 3.369104,
+            "max": 41.5317,
+            "p(90)": 4.645628,
+            "p(95)": 5.2054259499999995,
+            "avg": 3.552635106666668,
+            "min": 1.666853,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "data_received": {
+            "count": 64634671,
+            "rate": 262605.5702221596
+        },
+        "ws_session_duration": {
+            "med": 155017.1849375,
+            "max": 244940.611209,
+            "p(90)": 226952.177791,
+            "p(95)": 235910.9183577,
+            "avg": 155013.04506168715,
+            "min": 65078.522293
+        },
+        "checks": {
+            "passes": 1500,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "vus_max": {
+            "min": 1500,
+            "max": 1500,
+            "value": 1500
+        },
+        "ws_sessions": {
+            "count": 1500,
+            "rate": 6.094381687705031
+        },
+        "ws_errors": {
+            "count": 0,
+            "rate": 0,
+            "thresholds": {
+                "count<=8": false
+            }
+        },
+        "msgs_accepted": {
+            "count": 15005,
+            "rate": 60.964131482675995
+        },
+        "iteration_duration": {
+            "avg": 83283.46949472044,
+            "min": 1000.031485,
+            "med": 76574.5706195,
+            "max": 244941.324391,
+            "p(90)": 211219.59642870002,
+            "p(95)": 228079.27886275
+        },
+        "msgs_received": {
+            "count": 225075,
+            "rate": 914.46197224014,
+            "thresholds": {
+                "count>0": false
+            }
+        },
+        "msgs_sent": {
+            "count": 15005,
+            "rate": 60.964131482675995,
+            "thresholds": {
+                "count>0": false
+            }
+        }
+    },
+    "setup_data": {
+        "settle_s": 5,
+        "users": [
+            "proper-1794514498716-o9zoxvvi-user-0",
+            "proper-1794514498716-o9zoxvvi-user-1",
+            "proper-1794514498716-o9zoxvvi-user-2",
+            "proper-1794514498716-o9zoxvvi-user-3",
+            "proper-1794514498716-o9zoxvvi-user-4",
+            "proper-1794514498716-o9zoxvvi-user-5",
+            "proper-1794514498716-o9zoxvvi-user-6",
+            "proper-1794514498716-o9zoxvvi-user-7",
+            "proper-1794514498716-o9zoxvvi-user-8",
+            "proper-1794514498716-o9zoxvvi-user-9",
+            "proper-1794514498716-o9zoxvvi-user-10",
+            "proper-1794514498716-o9zoxvvi-user-11",
+            "proper-1794514498716-o9zoxvvi-user-12",
+            "proper-1794514498716-o9zoxvvi-user-13",
+            "proper-1794514498716-o9zoxvvi-user-14"
+        ],
+        "drain_s": 30,
+        "duration_s": 30,
+        "mode": "tput",
+        "ramp_s": 180,
+        "rooms": [
+            "proper-1794514498716-o9zoxvvi-room-0",
+            "proper-1794514498716-o9zoxvvi-room-1",
+            "proper-1794514498716-o9zoxvvi-room-2",
+            "proper-1794514498716-o9zoxvvi-room-3",
+            "proper-1794514498716-o9zoxvvi-room-4",
+            "proper-1794514498716-o9zoxvvi-room-5",
+            "proper-1794514498716-o9zoxvvi-room-6",
+            "proper-1794514498716-o9zoxvvi-room-7",
+            "proper-1794514498716-o9zoxvvi-room-8",
+            "proper-1794514498716-o9zoxvvi-room-9",
+            "proper-1794514498716-o9zoxvvi-room-10",
+            "proper-1794514498716-o9zoxvvi-room-11",
+            "proper-1794514498716-o9zoxvvi-room-12",
+            "proper-1794514498716-o9zoxvvi-room-13",
+            "proper-1794514498716-o9zoxvvi-room-14",
+            "proper-1794514498716-o9zoxvvi-room-15",
+            "proper-1794514498716-o9zoxvvi-room-16",
+            "proper-1794514498716-o9zoxvvi-room-17",
+            "proper-1794514498716-o9zoxvvi-room-18",
+            "proper-1794514498716-o9zoxvvi-room-19",
+            "proper-1794514498716-o9zoxvvi-room-20",
+            "proper-1794514498716-o9zoxvvi-room-21",
+            "proper-1794514498716-o9zoxvvi-room-22",
+            "proper-1794514498716-o9zoxvvi-room-23",
+            "proper-1794514498716-o9zoxvvi-room-24",
+            "proper-1794514498716-o9zoxvvi-room-25",
+            "proper-1794514498716-o9zoxvvi-room-26",
+            "proper-1794514498716-o9zoxvvi-room-27",
+            "proper-1794514498716-o9zoxvvi-room-28",
+            "proper-1794514498716-o9zoxvvi-room-29",
+            "proper-1794514498716-o9zoxvvi-room-30",
+            "proper-1794514498716-o9zoxvvi-room-31",
+            "proper-1794514498716-o9zoxvvi-room-32",
+            "proper-1794514498716-o9zoxvvi-room-33",
+            "proper-1794514498716-o9zoxvvi-room-34",
+            "proper-1794514498716-o9zoxvvi-room-35",
+            "proper-1794514498716-o9zoxvvi-room-36",
+            "proper-1794514498716-o9zoxvvi-room-37",
+            "proper-1794514498716-o9zoxvvi-room-38",
+            "proper-1794514498716-o9zoxvvi-room-39",
+            "proper-1794514498716-o9zoxvvi-room-40",
+            "proper-1794514498716-o9zoxvvi-room-41",
+            "proper-1794514498716-o9zoxvvi-room-42",
+            "proper-1794514498716-o9zoxvvi-room-43",
+            "proper-1794514498716-o9zoxvvi-room-44",
+            "proper-1794514498716-o9zoxvvi-room-45",
+            "proper-1794514498716-o9zoxvvi-room-46",
+            "proper-1794514498716-o9zoxvvi-room-47",
+            "proper-1794514498716-o9zoxvvi-room-48",
+            "proper-1794514498716-o9zoxvvi-room-49",
+            "proper-1794514498716-o9zoxvvi-room-50",
+            "proper-1794514498716-o9zoxvvi-room-51",
+            "proper-1794514498716-o9zoxvvi-room-52",
+            "proper-1794514498716-o9zoxvvi-room-53",
+            "proper-1794514498716-o9zoxvvi-room-54",
+            "proper-1794514498716-o9zoxvvi-room-55",
+            "proper-1794514498716-o9zoxvvi-room-56",
+            "proper-1794514498716-o9zoxvvi-room-57",
+            "proper-1794514498716-o9zoxvvi-room-58",
+            "proper-1794514498716-o9zoxvvi-room-59",
+            "proper-1794514498716-o9zoxvvi-room-60",
+            "proper-1794514498716-o9zoxvvi-room-61",
+            "proper-1794514498716-o9zoxvvi-room-62",
+            "proper-1794514498716-o9zoxvvi-room-63",
+            "proper-1794514498716-o9zoxvvi-room-64",
+            "proper-1794514498716-o9zoxvvi-room-65",
+            "proper-1794514498716-o9zoxvvi-room-66",
+            "proper-1794514498716-o9zoxvvi-room-67",
+            "proper-1794514498716-o9zoxvvi-room-68",
+            "proper-1794514498716-o9zoxvvi-room-69",
+            "proper-1794514498716-o9zoxvvi-room-70",
+            "proper-1794514498716-o9zoxvvi-room-71",
+            "proper-1794514498716-o9zoxvvi-room-72",
+            "proper-1794514498716-o9zoxvvi-room-73",
+            "proper-1794514498716-o9zoxvvi-room-74",
+            "proper-1794514498716-o9zoxvvi-room-75",
+            "proper-1794514498716-o9zoxvvi-room-76",
+            "proper-1794514498716-o9zoxvvi-room-77",
+            "proper-1794514498716-o9zoxvvi-room-78",
+            "proper-1794514498716-o9zoxvvi-room-79",
+            "proper-1794514498716-o9zoxvvi-room-80",
+            "proper-1794514498716-o9zoxvvi-room-81",
+            "proper-1794514498716-o9zoxvvi-room-82",
+            "proper-1794514498716-o9zoxvvi-room-83",
+            "proper-1794514498716-o9zoxvvi-room-84",
+            "proper-1794514498716-o9zoxvvi-room-85",
+            "proper-1794514498716-o9zoxvvi-room-86",
+            "proper-1794514498716-o9zoxvvi-room-87",
+            "proper-1794514498716-o9zoxvvi-room-88",
+            "proper-1794514498716-o9zoxvvi-room-89",
+            "proper-1794514498716-o9zoxvvi-room-90",
+            "proper-1794514498716-o9zoxvvi-room-91",
+            "proper-1794514498716-o9zoxvvi-room-92",
+            "proper-1794514498716-o9zoxvvi-room-93",
+            "proper-1794514498716-o9zoxvvi-room-94",
+            "proper-1794514498716-o9zoxvvi-room-95",
+            "proper-1794514498716-o9zoxvvi-room-96",
+            "proper-1794514498716-o9zoxvvi-room-97",
+            "proper-1794514498716-o9zoxvvi-room-98",
+            "proper-1794514498716-o9zoxvvi-room-99"
+        ],
+        "runId": "1794514498716-o9zoxvvi",
+        "send_interval_s": 3
+    },
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "ws handshake 101": {
+                    "fails": 0,
+                    "name": "ws handshake 101",
+                    "path": "::ws handshake 101",
+                    "id": "ea93306d778e5fa4d95326bd5ce13a44",
+                    "passes": 1500
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}
