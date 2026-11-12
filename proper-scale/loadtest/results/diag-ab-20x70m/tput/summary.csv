@@ -1,2 +1,0 @@
-"file","mode","rooms","users_per_room","total_clients","ramp_s","settle_s","load_s","drain_s","send_interval_s","messages_sent","expected_deliveries","messages_received","delivery_success_pct","handshake_pct","ws_errors","conn_p90_ms","conn_p95_ms","e2e_p50_ms","e2e_p95_ms","messages_accepted","sent_per_s","recv_per_s"
-"tput_si6","tput","500","15","7500","180","5","30","30","6","37513","562695","501494","89.1","100","1","2","2","30103","42222","37513","1250.4","16716.5"

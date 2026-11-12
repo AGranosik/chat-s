@@ -1,9 +1,10 @@
 # naive-scale — approach #2
 
 The "just add more boxes" reflex: run **N** copies of the same Go process
-behind one nginx load balancer. The compose file currently defines **ten**
-instances at **100m / 0.8 CPU** each (the first experiments used three at 200m;
-the single-instance approach ran one process on 600m). Postgres and nginx keep the
+behind one nginx load balancer. The compose file currently defines **fifteen**
+instances at **100m / 0.5 CPU** each (the 5-, 10- and first 15-instance sweeps ran
+at 0.8 CPU; the first experiments used three at 200m; the single-instance approach
+ran one process on 600m). Postgres and nginx keep the
 single-instance configuration.
 
 The server code started as a straight copy of `single-instance` — same REST +

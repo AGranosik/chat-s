@@ -34,13 +34,13 @@ flowchart LR
     subgraph net["docker compose network"]
         N["nginx :80<br/>1 CPU · 512 MB"]
 
-        subgraph S["Go server :8080 (internal only) · 8 CPU · 300 MB"]
-            T["transport<br/>REST + /ws upgrade"]
+        subgraph S["Go server · 8 CPU · 300 MB"]
+            T["transport :8080 (internal)<br/>REST + /ws upgrade"]
             RP["ReadPump<br/>1 goroutine per socket"]
             SV["chat.Service<br/>validate + 1 transaction"]
-            RL["outbox relay<br/>1 goroutine · 1 s poll · 500-row batches"]
             H["hub<br/>1 goroutine · rooms map"]
             WP["WritePump<br/>1 goroutine per socket<br/>256-slot send channel"]
+            RL["outbox relay<br/>1 goroutine · 1 s poll · 500-row batches"]
         end
 
         PG[("Postgres 16 · 2 CPU · 600 MB<br/>users · rooms · messages · outbox")]

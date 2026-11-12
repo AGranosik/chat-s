@@ -10,7 +10,7 @@ param(
   [int]      $Users        = 50,
   [int]      $ConnUsers    = 2,
 
-  [string]   $Tag          = "15x100m",
+  [string]   $Tag          = "15x100m-0.5cpu",
   [int]      $Ramp         = 180,
   [int]      $Settle       = 5,
   [int]      $Duration     = 30,

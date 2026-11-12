@@ -23,8 +23,8 @@ x-server: &server
   deploy:
     resources:
       limits:
-        memory: 70m
-        cpus: "0.50"
+        memory: 33m
+        cpus: "0.3"
 
 x-server-db-env: &server-db-env
   DATABASE_URL: "postgres://chat:chat@postgres:5432/chat?sslmode=disable&pool_max_conns=8"

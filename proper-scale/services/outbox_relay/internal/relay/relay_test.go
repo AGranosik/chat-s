@@ -194,6 +194,78 @@ func TestSplitResultsTreatsMissingResultsAsFailures(t *testing.T) {
 	}
 }
 
+func TestRunFullBatchPollsAgainWithoutWaiting(t *testing.T) {
+	gapAfterFirstPoll(t, newEntries(t, 10), nil, time.Hour)
+}
+
+func TestRunShortBatchWaitsPollInterval(t *testing.T) {
+	const interval = 50 * time.Millisecond
+
+	gap := gapAfterFirstPoll(t, newEntries(t, 9), nil, interval)
+
+	if gap < interval {
+		t.Fatalf("gap between polls = %v, want at least %v", gap, interval)
+	}
+}
+
+func TestRunFailedCycleWaitsPollInterval(t *testing.T) {
+	const interval = 50 * time.Millisecond
+
+	gap := gapAfterFirstPoll(t, nil, errors.New("database unavailable"), interval)
+
+	if gap < interval {
+		t.Fatalf("gap between polls = %v, want at least %v", gap, interval)
+	}
+}
+
+type scriptedRepository struct {
+	next  func(call int) ([]postgres.Entry, error)
+	calls int
+}
+
+func (r *scriptedRepository) NextPending(context.Context, []int, int) ([]postgres.Entry, error) {
+	r.calls++
+	return r.next(r.calls)
+}
+
+func (r *scriptedRepository) MarkPublished(context.Context, []string) error {
+	return nil
+}
+
+func gapAfterFirstPoll(t *testing.T, firstBatch []postgres.Entry, firstErr error, interval time.Duration) time.Duration {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var firstPolled time.Time
+	var gap time.Duration
+	repository := &scriptedRepository{next: func(call int) ([]postgres.Entry, error) {
+		if call == 1 {
+			firstPolled = time.Now()
+			return firstBatch, firstErr
+		}
+		gap = time.Since(firstPolled)
+		cancel()
+		return nil, nil
+	}}
+	publisher := &testPublisher{publish: func(_ string, messages []kafka.Message) []error {
+		return make([]error, len(messages))
+	}}
+	worker := newTestRelay(t, repository, publisher, 1)
+	worker.config.PollInterval = interval
+
+	done := make(chan error, 1)
+	go func() { done <- worker.Run(ctx) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("relay did not poll a second time within 5s")
+	}
+	return gap
+}
+
 type testRepository struct {
 	entries []postgres.Entry
 	marked  [][]string
@@ -262,6 +334,15 @@ func newEntry(t *testing.T, roomID string, roomSeq int64) postgres.Entry {
 		RoomSeq:   event.RoomSeq,
 		Event:     eventJSON,
 	}
+}
+
+func newEntries(t *testing.T, n int) []postgres.Entry {
+	t.Helper()
+	result := make([]postgres.Entry, n)
+	for i := range result {
+		result[i] = newEntry(t, "room-1", int64(i+1))
+	}
+	return result
 }
 
 func ids(entries ...postgres.Entry) []string {
