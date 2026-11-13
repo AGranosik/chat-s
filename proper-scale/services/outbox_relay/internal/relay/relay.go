@@ -67,7 +67,7 @@ func (r *Relay) Run(ctx context.Context) error {
 		if err != nil && ctx.Err() == nil {
 			r.logger.Error("outbox relay cycle failed", "error", err)
 		}
-		if err == nil && processed >= r.config.BatchSize {
+		if err == nil && processed > 0 {
 			continue
 		}
 

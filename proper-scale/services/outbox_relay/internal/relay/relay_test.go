@@ -198,10 +198,14 @@ func TestRunFullBatchPollsAgainWithoutWaiting(t *testing.T) {
 	gapAfterFirstPoll(t, newEntries(t, 10), nil, time.Hour)
 }
 
-func TestRunShortBatchWaitsPollInterval(t *testing.T) {
+func TestRunShortBatchPollsAgainWithoutWaiting(t *testing.T) {
+	gapAfterFirstPoll(t, newEntries(t, 9), nil, time.Hour)
+}
+
+func TestRunEmptyOutboxWaitsPollInterval(t *testing.T) {
 	const interval = 50 * time.Millisecond
 
-	gap := gapAfterFirstPoll(t, newEntries(t, 9), nil, interval)
+	gap := gapAfterFirstPoll(t, nil, nil, interval)
 
 	if gap < interval {
 		t.Fatalf("gap between polls = %v, want at least %v", gap, interval)

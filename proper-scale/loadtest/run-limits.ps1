@@ -43,7 +43,7 @@ if ($NativeK6) {
   }
 }
 
-$serverContainers = @(1..5 | ForEach-Object { "chat-server-$_" })
+$serverContainers = @(1..12 | ForEach-Object { "chat-server-$_" })
 $readyPath = '/health/ready'
 
 function Wait-Ready([int] $TimeoutSec) {
